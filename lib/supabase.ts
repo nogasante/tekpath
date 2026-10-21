@@ -11,11 +11,20 @@ export const supabaseConfigError =
     ? 'Add EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY to a .env file. See .env.example.'
     : null;
 
+const authStorage =
+  typeof window === 'undefined'
+    ? {
+        getItem: async () => null,
+        setItem: async () => {},
+        removeItem: async () => {},
+      }
+    : AsyncStorage;
+
 export const supabase = createClient(url ?? 'http://127.0.0.1:54321', key ?? 'missing-anon-key', {
   auth: {
-    storage: AsyncStorage,
+    storage: authStorage,
     autoRefreshToken: true,
     persistSession: true,
-    detectSessionInUrl: Platform.OS === 'web',
+    detectSessionInUrl: Platform.OS === 'web' && typeof window !== 'undefined',
   },
 });

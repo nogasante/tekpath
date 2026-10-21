@@ -31,7 +31,7 @@ npm test
 npx expo start --port 43123
 ```
 
-Press `w` for the browser, or scan the QR code with Expo Go. The web app is also `npm run web`.
+Press `w` for the browser, or scan the QR code with Expo Go. The web app is also `npm run web`. Web is a client-side bundle (`web.output` is `single` in `app.json`) so camera, map, and auth run in the browser without a server render.
 
 Local demo account (created by the seed):
 
