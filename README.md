@@ -36,7 +36,7 @@ Press `w` for the browser, or scan the QR code with Expo Go. The web app is also
 Local demo account (created by the seed):
 
 - Email: `demo@tekpath.app`
-- Password: `TekpathDemo2026`
+- Password: `TekpathDemo2026` (local stack only; do not reuse it on a hosted project)
 - Magic links and sign-up mail land in Mailpit at http://127.0.0.1:54324
 
 If `supabase start` hangs on “Initialising schema” with database connection timeouts, Docker’s legacy iptables `FORWARD` policy may be `DROP`, which blocks container-to-container traffic. On this kind of VM, `sudo iptables-legacy -P FORWARD ACCEPT` unblocks it. Realtime is set to IPv4 in `supabase/config.toml` for the same local Docker network.
@@ -54,7 +54,7 @@ curl -X POST "$EXPO_PUBLIC_SUPABASE_URL/auth/v1/admin/users" \
   -H "apikey: $SERVICE_ROLE_KEY" \
   -H "Authorization: Bearer $SERVICE_ROLE_KEY" \
   -H "Content-Type: application/json" \
-  -d '{"email":"demo@tekpath.app","password":"TekpathDemo2026","email_confirm":true,"user_metadata":{"display_name":"Ama Mensah"}}'
+  -d '{"email":"demo@tekpath.app","password":"CHOOSE_A_NEW_PASSWORD","email_confirm":true,"user_metadata":{"display_name":"Ama Mensah"}}'
 ```
 
 The new-user trigger creates `profiles` and an empty `profile_private` row. Use the service role only for this call. Do not put it in the app.

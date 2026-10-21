@@ -12,7 +12,9 @@
 
 set search_path = public, extensions, auth;
 
--- Local demo account. Password: TekpathDemo2026
+-- Local demo account only. Password: TekpathDemo2026
+-- This password is for the local Supabase stack (`supabase db reset`).
+-- Never use it on a hosted project. Pick a different password there.
 do $seed_auth$
 begin
   if exists (

@@ -70,7 +70,7 @@ export default function LoginScreen() {
       <Button label="Create account" variant="secondary" onPress={signUp} disabled={busy || !email || password.length < 6} />
       <Button label="Email me a magic link" variant="secondary" onPress={magic} disabled={busy || !email} />
       <Notice>
-        Local demo account from the seed: demo@tekpath.app / TekpathDemo2026. Hosted projects only have this user if you ran the seed there.
+        Local demo account from the seed: demo@tekpath.app / TekpathDemo2026. That password is for the local stack only. On a hosted project, sign in with the password you chose when you created the user.
       </Notice>
       {message ? <Notice tone="good">{message}</Notice> : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}
