@@ -6,7 +6,7 @@ Coordinates in the seed are **approximate demo positions** around the campus cen
 
 ## Run it locally
 
-You need Node 20+, the [Supabase CLI](https://supabase.com/docs/guides/cli), and Docker.
+You need Node.js 22.13 or newer, the [Supabase CLI](https://supabase.com/docs/guides/cli), and Docker. This app is Expo SDK 57, which does not support Node.js 20.
 
 ```bash
 npm install
@@ -64,6 +64,8 @@ The new-user trigger creates `profiles` and an empty `profile_private` row. Use 
 
 ## Test on your phone with Expo Go
 
+The app is Expo SDK 57 (`expo` 57.x, React Native 0.86). Open it in Expo Go for SDK 57. Expo Go for SDK 58 will not load this project.
+
 The app reads `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` from `.env`. A publishable key (`sb_publishable_...`) works in the anon key variable. Point both at the hosted project. A phone cannot open `127.0.0.1` on your computer.
 
 ```bash
@@ -107,7 +109,7 @@ Start from a fresh `supabase db reset` so both lifts are working and the Adminis
 ## Architecture
 
 ```
-Expo Router app (Expo Go + web)
+Expo Router app (Expo SDK 57, Expo Go + web)
   map (Leaflet + OSM tiles) · search · reports · QR · guidance
         |  supabase-js, anon key, RLS
         v

@@ -54,7 +54,10 @@
         {
           "locationWhenInUsePermission": "TekPath uses your location to suggest the nearest outdoor start while you are on the KNUST campus."
         }
-      ]
+      ],
+      "expo-font",
+      "expo-status-bar",
+      "expo-web-browser"
     ],
     "experiments": {
       "typedRoutes": true
