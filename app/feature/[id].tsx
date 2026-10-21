@@ -16,7 +16,7 @@ type ReportRow = {
   note: string | null;
   photo_url: string | null;
   created_at: string;
-  profiles: { display_name: string } | { display_name: string }[] | null;
+  display_name: string | null;
 };
 
 export default function FeatureScreen() {
@@ -36,8 +36,8 @@ export default function FeatureScreen() {
     const [featureResult, reportResult] = await Promise.all([
       supabase.from('features').select('id,node_id,building_id,kind,name,status,last_reported_at,latitude,longitude').eq('id', id).maybeSingle(),
       supabase
-        .from('reports')
-        .select('id,status,note,photo_url,created_at,profiles(display_name)')
+        .from('report_feed')
+        .select('id,status,note,photo_url,created_at,display_name')
         .eq('feature_id', id)
         .order('created_at', { ascending: false })
         .limit(20),
@@ -53,7 +53,6 @@ export default function FeatureScreen() {
     const channel = supabase
       .channel(`feature-${id}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'features', filter: `id=eq.${id}` }, () => load())
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'reports' }, () => load())
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
@@ -87,14 +86,17 @@ export default function FeatureScreen() {
     try {
       let photoUrl: string | null = null;
       if (photo) photoUrl = await uploadReportPhoto(session.user.id, photo.uri, photo.mime);
-      const { error: insertError } = await supabase.from('reports').insert({
-        feature_id: feature.id,
-        node_id: feature.node_id,
-        user_id: session.user.id,
-        status,
-        note: note.trim() || null,
-        photo_url: photoUrl,
-      });
+      const { error: insertError } = await supabase
+        .from('reports')
+        .insert({
+          feature_id: feature.id,
+          node_id: feature.node_id,
+          user_id: session.user.id,
+          status,
+          note: note.trim() || null,
+          photo_url: photoUrl,
+        })
+        .select('id');
       if (insertError) throw insertError;
       setNote('');
       setPhoto(null);
@@ -156,13 +158,12 @@ export default function FeatureScreen() {
       <AppText weight="700" size={22}>Recent reports</AppText>
       {reports.length === 0 ? <AppText>No reports yet.</AppText> : null}
       {reports.map((report) => {
-        const profile = Array.isArray(report.profiles) ? report.profiles[0] : report.profiles;
         return (
           <View key={report.id} style={{ gap: 6, padding: 12, borderWidth: 2, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.card }}>
             <StatusBadge status={report.status} />
             <AppText>{report.note || 'No note.'}</AppText>
             <AppText size={15} color={colors.muted}>
-              {profile?.display_name || 'Student'} · {new Date(report.created_at).toLocaleString()}
+              {report.display_name || 'Student'} · {new Date(report.created_at).toLocaleString()}
             </AppText>
             {report.photo_url ? (
               <Image source={{ uri: report.photo_url }} style={{ width: '100%', height: 180, borderRadius: 12 }} accessibilityLabel="Report photo" />

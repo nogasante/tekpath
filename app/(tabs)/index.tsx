@@ -52,7 +52,6 @@ export default function MapScreen() {
     const channel = supabase
       .channel('tekpath-map')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'features' }, () => load())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => load())
       .subscribe();
     return () => {
       supabase.removeChannel(channel);

@@ -45,7 +45,7 @@
     "android": "expo start --android --port 43123",
     "ios": "expo start --ios --port 43123",
     "web": "expo start --web --port 43123",
-    "test": "node --test tests/routing.test.mjs",
+    "test": "node --test --test-concurrency=1 tests/routing.test.mjs tests/privacy.test.mjs",
     "qr": "node scripts/generate-qr.mjs"
   },
   "private": true

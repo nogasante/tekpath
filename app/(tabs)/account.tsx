@@ -22,27 +22,37 @@ export default function AccountScreen() {
 
   useEffect(() => {
     if (!session) return;
-    supabase
-      .from('profiles')
-      .select('display_name,mobility_needs')
-      .eq('id', session.user.id)
-      .maybeSingle()
-      .then(({ data, error: queryError }) => {
-        if (queryError) setError(queryError.message);
-        setDisplayName(data?.display_name ?? '');
-        setMobility(data?.mobility_needs ?? '');
-      });
+    let cancelled = false;
+    Promise.all([
+      supabase.from('profiles').select('display_name').eq('id', session.user.id).maybeSingle(),
+      supabase.from('profile_private').select('mobility_needs').eq('id', session.user.id).maybeSingle(),
+    ]).then(([profileResult, privateResult]) => {
+      if (cancelled) return;
+      if (profileResult.error) setError(profileResult.error.message);
+      if (privateResult.error) setError(privateResult.error.message);
+      setDisplayName(profileResult.data?.display_name ?? '');
+      setMobility(privateResult.data?.mobility_needs ?? '');
+    });
+    return () => {
+      cancelled = true;
+    };
   }, [session]);
 
   async function save() {
     if (!session) return;
     setError(null);
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ display_name: displayName.trim(), mobility_needs: mobility.trim() || null, updated_at: new Date().toISOString() })
-      .eq('id', session.user.id);
-    if (updateError) setError(updateError.message);
-    else setMessage('Profile saved.');
+    const updatedAt = new Date().toISOString();
+    const [profileResult, privateResult] = await Promise.all([
+      supabase.from('profiles').update({ display_name: displayName.trim(), updated_at: updatedAt }).eq('id', session.user.id),
+      supabase.from('profile_private').upsert({
+        id: session.user.id,
+        mobility_needs: mobility.trim() || null,
+        updated_at: updatedAt,
+      }),
+    ]);
+    if (profileResult.error || privateResult.error) {
+      setError(profileResult.error?.message || privateResult.error?.message || 'Could not save the profile.');
+    } else setMessage('Profile saved. Mobility needs stay private to this account.');
   }
 
   return (
@@ -94,8 +104,11 @@ export default function AccountScreen() {
             value={mobility}
             onChangeText={setMobility}
             multiline
-            placeholder="Optional. Visible with your profile."
+            placeholder="Optional. Only you can see this."
           />
+          <AppText size={16} color={colors.muted}>
+            Stored separately from your display name. Other students and signed-out visitors cannot read it. Reports still show your display name, note, and photo.
+          </AppText>
           <Button label="Save profile" onPress={save} />
           <Button
             label="Sign out"

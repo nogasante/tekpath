@@ -1,11 +1,29 @@
 -- TekPath demo seed.
 -- Every coordinate below is an APPROXIMATE demo position near the published
 -- KNUST campus centre (6.6745 N, 1.5716 W). They are not a survey.
+--
+-- Local `supabase db reset` creates demo@tekpath.app here.
+-- On a hosted project, create that user with the Auth admin API first
+-- (email_confirm true, user_metadata.display_name). Do not rely on the
+-- auth.users insert below: GoTrue owns that table and a raw insert is easy
+-- to get wrong. If the insert fails, the campus graph still loads, and the
+-- profile update and Administration Block report attach only when the
+-- demo email already exists.
 
 set search_path = public, extensions, auth;
 
 -- Local demo account. Password: TekpathDemo2026
-insert into auth.users (
+do $seed_auth$
+begin
+  if exists (
+    select 1 from auth.users
+    where id = '00000000-0000-4000-a000-00000000d001'
+       or email = 'demo@tekpath.app'
+  ) then
+    return;
+  end if;
+
+  insert into auth.users (
   instance_id,
   id,
   aud,
@@ -67,12 +85,25 @@ insert into auth.identities (
   now(),
   now()
 );
+exception
+  when others then
+    raise notice 'Skipped auth.users seed (%). Create demo@tekpath.app with the Auth admin API.', sqlerrm;
+end
+$seed_auth$;
 
-update public.profiles
-set
-  display_name = 'Ama Mensah',
-  mobility_needs = 'Wheelchair user. I need step-free routes and working lifts.'
-where id = '00000000-0000-4000-a000-00000000d001';
+update public.profiles p
+set display_name = 'Ama Mensah'
+from auth.users u
+where u.id = p.id
+  and u.email = 'demo@tekpath.app';
+
+insert into public.profile_private (id, mobility_needs)
+select u.id, 'Wheelchair user. I need step-free routes and working lifts.'
+from auth.users u
+where u.email = 'demo@tekpath.app'
+on conflict (id) do update
+set mobility_needs = excluded.mobility_needs,
+    updated_at = now();
 
 insert into public.buildings (id, name, code, description, latitude, longitude) values
   (
@@ -326,10 +357,17 @@ insert into public.edges (
     'Leave Lecture Theatre 201 and return to the corridor.');
 
 insert into public.reports (feature_id, node_id, user_id, status, note)
-values (
+select
   '00000000-0000-4000-a000-000000000308',
   '00000000-0000-4000-a000-000000000205',
-  '00000000-0000-4000-a000-00000000d001',
+  u.id,
   'broken',
   'The ramp lip has crumbled and a wheelchair cannot cross it. This pin is approximate — please confirm on site.'
-);
+from auth.users u
+where u.email = 'demo@tekpath.app'
+  and not exists (
+    select 1
+    from public.reports r
+    where r.feature_id = '00000000-0000-4000-a000-000000000308'
+      and r.note = 'The ramp lip has crumbled and a wheelchair cannot cross it. This pin is approximate — please confirm on site.'
+  );
