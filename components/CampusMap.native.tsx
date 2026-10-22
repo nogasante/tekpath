@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type Region as NativeRegion } from 'react-native-maps';
+import MapView, { Marker, Polygon, Polyline, PROVIDER_GOOGLE, type Region as NativeRegion } from 'react-native-maps';
 
 import {
   ClusterMark,
@@ -11,6 +11,7 @@ import {
   campusBounds,
   campusRegion,
   clampRegion,
+  focusRegion,
   finitePoints,
   landColor,
   mapStyleFor,
@@ -30,7 +31,7 @@ export { MapControls };
 const provider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 
 export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
-  { features, selectedId, onSelect, onCenter, padding, route, interactive = true },
+  { features, selectedId, onSelect, onCenter, padding, route, polygon, onMapPress, focus, interactive = true },
   ref,
 ) {
   const { mode, reduceMotion } = useTheme();
@@ -39,9 +40,9 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
     [padding?.top, padding?.right, padding?.bottom, padding?.left],
   );
   const mapRef = useRef<MapView>(null);
-  const regionRef = useRef<Region>(campusRegion);
+  const regionRef = useRef<Region>(focus ? focusRegion(focus) : campusRegion);
   const readyRef = useRef(false);
-  const [region, setRegion] = useState<Region>(campusRegion);
+  const [region, setRegion] = useState<Region>(focus ? focusRegion(focus) : campusRegion);
   const [quiet, setQuiet] = useState(false);
   const [ready, setReady] = useState(false);
   const mapStyle = useMemo(() => mapStyleFor(mode, quiet), [mode, quiet]);
@@ -83,6 +84,12 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
   );
 
   useEffect(() => {
+    if (!ready || !focus) return;
+    move(focusRegion(focus), true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ready, focus?.latitude, focus?.longitude]);
+
+  useEffect(() => {
     if (!ready) return;
     if (line.length > 1) {
       fit(line, true);
@@ -113,6 +120,7 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
 
   const stroke = mode === 'dark' ? '#7DDFC3' : '#0F6E56';
   const casing = mode === 'dark' ? '#0E1613' : '#FFFFFF';
+  const outline = (polygon ?? []).filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
 
   return (
     <View
@@ -122,7 +130,7 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
         ref={mapRef}
         provider={provider}
         style={{ flex: 1 }}
-        initialRegion={campusRegion}
+        initialRegion={focus ? focusRegion(focus) : campusRegion}
         customMapStyle={ready ? mapStyle : undefined}
         userInterfaceStyle={mode}
         showsUserLocation={interactive}
@@ -143,12 +151,24 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
           mapRef.current?.setMapBoundaries(campusBounds.northEast, campusBounds.southWest);
           setReady(true);
         }}
+        onPress={(event) => {
+          const coord = event.nativeEvent.coordinate;
+          if (onMapPress && coord) onMapPress({ latitude: coord.latitude, longitude: coord.longitude });
+        }}
         onRegionChangeComplete={(next: NativeRegion) => {
           const clamped = clampRegion(next);
           regionRef.current = clamped;
           setRegion(clamped);
           onCenter?.(clamped.latitude, clamped.longitude);
         }}>
+        {outline.length > 2 ? (
+          <Polygon
+            coordinates={outline}
+            strokeColor={stroke}
+            fillColor={mode === 'dark' ? 'rgba(17,122,99,0.35)' : 'rgba(15,110,86,0.22)'}
+            strokeWidth={2}
+          />
+        ) : null}
         {line.length > 1 ? (
           <Polyline coordinates={line} strokeColor={casing} strokeWidth={8} lineCap="round" lineJoin="round" />
         ) : null}

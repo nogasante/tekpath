@@ -32,7 +32,7 @@ function intent(next: string | undefined) {
       body: 'A guest is enough, and the report goes through on this phone. The map, search, and routes never need an account.',
     };
   }
-  if (next?.includes('add-point') || next?.includes('map-building')) {
+  if (next?.includes('add-point') || next?.includes('map-building') || next?.includes('walk')) {
     return {
       title: 'Save this to the map',
       body: 'A guest is enough. You can add an email later from Account. Looking around the campus stays open either way.',

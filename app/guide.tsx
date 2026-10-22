@@ -9,13 +9,16 @@ import { AppText, Button, Card, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { haptic } from '@/lib/haptics';
+import { diagramOutline, footprintCaption, ringFromGeoJson } from '@/lib/footprint';
 import { fetchRoute, floorSpoken, spokenStep } from '@/lib/indoor';
 import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
 import { formatDistance } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
+import { one } from '@/lib/types';
 import { radii, spacing, type as typeScale } from '@/lib/theme';
 
 type Room = { name: string; x: number; y: number; w: number; h: number };
+type PlanFrame = { outline: { x: number; y: number }[]; metres: boolean; caption: string | null };
 
 export default function GuideScreen() {
   const params = useLocalSearchParams<{ to?: string }>();
@@ -24,6 +27,7 @@ export default function GuideScreen() {
   const { route, setRoute, floor, correctFloor, session, startNode } = useAppState();
   const [index, setIndex] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
+  const [frame, setFrame] = useState<PlanFrame>({ outline: [], metres: false, caption: null });
   const [lengths, setLengths] = useState<Record<string, number>>({});
   const [photos, setPhotos] = useState<Record<string, string>>({});
   const [autoNote, setAutoNote] = useState<string | null>(null);
@@ -102,17 +106,34 @@ export default function GuideScreen() {
   useEffect(() => {
     if (!step?.floor_id) {
       setRooms([]);
+      setFrame({ outline: [], metres: false, caption: null });
       return;
     }
-    supabase
-      .from('floors')
-      .select('layout')
-      .eq('id', step.floor_id)
-      .maybeSingle()
-      .then(({ data }) => {
-        const layout = data?.layout as { rooms?: Room[] } | null;
-        setRooms(Array.isArray(layout?.rooms) ? layout.rooms : []);
-      });
+    const floorId = step.floor_id;
+    let cancelled = false;
+    (async () => {
+      const rich = await supabase
+        .from('floors')
+        .select('layout, buildings(footprint_geojson, area_m2, perimeter_m)')
+        .eq('id', floorId)
+        .maybeSingle();
+      const row = rich.error ? (await supabase.from('floors').select('layout').eq('id', floorId).maybeSingle()).data : rich.data;
+      if (cancelled || !row) return;
+      const layout = row.layout as { rooms?: Room[]; outline?: { x: number; y: number }[]; frame?: string } | null;
+      const building = 'buildings' in row ? one(row.buildings as { footprint_geojson?: unknown; area_m2?: number | null; perimeter_m?: number | null } | { footprint_geojson?: unknown; area_m2?: number | null; perimeter_m?: number | null }[] | null) : null;
+      const caption = footprintCaption(building?.area_m2, building?.perimeter_m);
+      if (layout?.frame === 'metres' && Array.isArray(layout.outline) && layout.outline.length >= 3) {
+        setRooms([]);
+        setFrame({ outline: layout.outline, metres: true, caption });
+        return;
+      }
+      setRooms(Array.isArray(layout?.rooms) ? layout.rooms : []);
+      const geographic = ringFromGeoJson(building?.footprint_geojson);
+      setFrame({ outline: geographic ? diagramOutline(geographic) : [], metres: false, caption });
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [step?.floor_id]);
 
   async function reportBlocked() {
@@ -239,8 +260,23 @@ export default function GuideScreen() {
             </View>
           )}
         </Card>
-        {rooms.length > 0 ? (
-          <FloorPlan rooms={rooms} activeName={step.node_name} planX={step.plan_x} planY={step.plan_y} route={floorRoute} />
+        {rooms.length > 0 || frame.outline.length >= 3 ? (
+          <>
+            {frame.caption ? (
+              <AppText size={typeScale.label} color={colors.muted}>
+                {frame.caption}
+              </AppText>
+            ) : null}
+            <FloorPlan
+              rooms={frame.metres ? [] : rooms}
+              outline={frame.outline}
+              metres={frame.metres}
+              activeName={step.node_name}
+              planX={step.plan_x}
+              planY={step.plan_y}
+              route={floorRoute}
+            />
+          </>
         ) : null}
         <Notice tone={floor.source === 'barometer' ? 'good' : 'info'}>
           {floor.source === 'barometer'

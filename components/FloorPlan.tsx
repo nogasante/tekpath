@@ -7,6 +7,7 @@ import { glyph } from '@/components/glyphs';
 
 import { AppText } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
+import { fitMetres } from '@/lib/footprint';
 import { type as typeScale } from '@/lib/theme';
 
 type Room = { name: string; x: number; y: number; w: number; h: number };
@@ -21,12 +22,17 @@ export function FloorPlan({
   planX,
   planY,
   route = [],
+  outline = [],
+  metres = false,
 }: {
   rooms: Room[];
   activeName?: string | null;
   planX?: number | null;
   planY?: number | null;
   route?: Point[];
+  /** Building outline. Diagram units, or local metres when `metres` is set. */
+  outline?: Point[];
+  metres?: boolean;
 }) {
   const { colors, reduceMotion } = useTheme();
   const pulse = useSharedValue(reduceMotion ? 3.2 : 2.2);
@@ -44,12 +50,22 @@ export function FloorPlan({
 
   const pulseProps = useAnimatedProps(() => ({ r: pulse.value }));
   const lineProps = useAnimatedProps(() => ({ strokeDashoffset: dash.value }));
+  const fitted = metres && outline.length >= 3 ? fitMetres(outline) : null;
+  const mapPoint = fitted ? fitted.mapPoint : (point: Point) => point;
+  const shell = fitted ? fitted.points : outline;
+  const shellPath = shell.length >= 3 ? `${shell.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ')} Z` : '';
+  const mappedRoute = route.map(mapPoint);
   const here = planX != null && planY != null;
+  const herePoint = here ? mapPoint({ x: Number(planX), y: Number(planY) }) : null;
 
   return (
-    <View accessibilityLabel="Floor diagram with the step-free line and your place. Follow the written landmark.">
+    <View accessibilityLabel="Floor diagram with the building outline, the step-free line, and your place. Follow the written landmark.">
       <Svg viewBox="0 0 100 100" width="100%" height={268}>
-        <Rect x="1.5" y="1.5" width="97" height="97" rx="8" fill={colors.bg} stroke={colors.line} strokeWidth="1.2" />
+        {shellPath ? (
+          <Path d={shellPath} fill={colors.bg} stroke={colors.primary} strokeWidth={1.4} />
+        ) : (
+          <Rect x="1.5" y="1.5" width="97" height="97" rx="8" fill={colors.bg} stroke={colors.line} strokeWidth="1.2" />
+        )}
         {rooms.map((room) => {
           const active = activeName != null && room.name.toLowerCase().includes(activeName.toLowerCase().slice(0, 10));
           return (
@@ -80,9 +96,9 @@ export function FloorPlan({
             </SvgText>
           </G>
         ))}
-        {route.length > 1 ? (
+        {mappedRoute.length > 1 ? (
           <AnimatedPath
-            d={toPath(route)}
+            d={toPath(mappedRoute)}
             fill="none"
             stroke={colors.primary}
             strokeWidth={2.1}
@@ -92,14 +108,15 @@ export function FloorPlan({
             animatedProps={lineProps}
           />
         ) : null}
-        {here ? (
+        {herePoint ? (
           <>
-            <AnimatedCircle cx={Number(planX)} cy={Number(planY)} fill={colors.accentSoft} animatedProps={pulseProps} />
-            <Circle cx={Number(planX)} cy={Number(planY)} r={2.1} fill={colors.primary} stroke={colors.bgElevated} strokeWidth={0.7} />
+            <AnimatedCircle cx={herePoint.x} cy={herePoint.y} fill={colors.accentSoft} animatedProps={pulseProps} />
+            <Circle cx={herePoint.x} cy={herePoint.y} r={2.1} fill={colors.primary} stroke={colors.bgElevated} strokeWidth={0.7} />
           </>
         ) : null}
       </Svg>
       <AppText size={typeScale.caption} color={colors.muted}>
+        {metres && shellPath ? 'The wall is the building outline, in local metres. ' : shellPath ? 'The wall is the building outline. ' : ''}
         The dot is you. Follow the line, then the written landmark.
       </AppText>
     </View>

@@ -34,8 +34,22 @@ export type MapProps = {
   onCenter?: (latitude: number, longitude: number) => void;
   padding?: MapPadding;
   route?: LatLng[];
+  polygon?: LatLng[];
+  onMapPress?: (coord: LatLng) => void;
+  /** Centre the map here, for tracing a building rather than the whole campus. */
+  focus?: LatLng;
   interactive?: boolean;
 };
+
+export function focusRegion(focus?: LatLng | null): Region {
+  if (!focus) return campusRegion;
+  return clampRegion({
+    latitude: focus.latitude,
+    longitude: focus.longitude,
+    latitudeDelta: 0.0015,
+    longitudeDelta: 0.0015,
+  });
+}
 
 /** KNUST main campus, with a little room around the mapped buildings. */
 export const campusBounds = {

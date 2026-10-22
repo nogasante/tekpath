@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Pressable, View } from 'react-native';
-import Svg, { Polyline } from 'react-native-svg';
+import Svg, { Polygon, Polyline } from 'react-native-svg';
 
 import {
   ClusterMark,
@@ -10,6 +10,7 @@ import {
   buildClusters,
   campusRegion,
   clampRegion,
+  focusRegion,
   finitePoints,
   landColor,
   regionFor,
@@ -27,13 +28,13 @@ export { MapControls };
 
 /** Web stand-in. The phone uses Google Maps or Apple Maps via react-native-maps. */
 export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
-  { features, selectedId, onSelect, onCenter, padding, route, interactive = true },
+  { features, selectedId, onSelect, onCenter, padding, route, polygon, onMapPress, focus, interactive = true },
   ref,
 ) {
   const { mode } = useTheme();
   const pad = padding ?? { top: 72, right: 24, bottom: 220, left: 64 };
-  const regionRef = useRef<Region>(campusRegion);
-  const [region, setRegion] = useState<Region>(campusRegion);
+  const regionRef = useRef<Region>(focus ? focusRegion(focus) : campusRegion);
+  const [region, setRegion] = useState<Region>(focus ? focusRegion(focus) : campusRegion);
   const [size, setSize] = useState({ width: 390, height: 700 });
   const [quiet, setQuiet] = useState(false);
   const framed = useRef(false);
@@ -61,6 +62,12 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
   }));
 
   useEffect(() => {
+    if (focus) move(focusRegion(focus));
+    // Recentre when the outline search moves to a building.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focus?.latitude, focus?.longitude]);
+
+  useEffect(() => {
     if (line.length > 1) {
       fit(line);
       return;
@@ -73,6 +80,13 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
   }, [line.map((point) => `${point.latitude},${point.longitude}`).join('|'), points.length, size.width, size.height]);
 
   const stroke = mode === 'dark' ? '#7DDFC3' : '#0F6E56';
+  const outline = (polygon ?? []).filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+  const outlinePath = outline
+    .map((point) => {
+      const spot = project(point, region, size.width, size.height);
+      return `${spot.x},${spot.y}`;
+    })
+    .join(' ');
   const path = line
     .map((point) => {
       const spot = project(point, region, size.width, size.height);
@@ -85,10 +99,32 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
       accessibilityLabel="KNUST campus map"
       style={{ flex: 1, minHeight: 240, backgroundColor: quiet ? (mode === 'dark' ? '#171E1B' : '#E6E2D8') : landColor(mode), overflow: 'hidden' }}
       onLayout={(event) => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}>
-      {line.length > 1 ? (
+      {onMapPress ? (
+        <Pressable
+          accessibilityLabel="Map. Tap to add a corner."
+          style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}
+          onPress={(event) => {
+            const native = event.nativeEvent as { locationX?: number; locationY?: number; clientX?: number; clientY?: number };
+            let x = Number(native.locationX);
+            let y = Number(native.locationY);
+            const node = event.currentTarget as unknown as { getBoundingClientRect?: () => { left: number; top: number } };
+            const clientX = native.clientX;
+            const clientY = native.clientY;
+            if ((!Number.isFinite(x) || !Number.isFinite(y)) && node.getBoundingClientRect && clientX != null && clientY != null) {
+              const rect = node.getBoundingClientRect();
+              x = clientX - rect.left;
+              y = clientY - rect.top;
+            }
+            if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+            onMapPress(unproject(x, y, region, size.width, size.height));
+          }}
+        />
+      ) : null}
+      {outline.length > 2 || line.length > 1 ? (
         <Svg width={size.width} height={size.height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
-          <Polyline points={path} fill="none" stroke={mode === 'dark' ? '#0E1613' : '#FFFFFF'} strokeWidth={8} strokeLinejoin="round" strokeLinecap="round" />
-          <Polyline points={path} fill="none" stroke={stroke} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" />
+          {outline.length > 2 ? <Polygon points={outlinePath} fill={mode === 'dark' ? 'rgba(17,122,99,0.35)' : 'rgba(15,110,86,0.22)'} stroke={stroke} strokeWidth={2} /> : null}
+          {line.length > 1 ? <Polyline points={path} fill="none" stroke={mode === 'dark' ? '#0E1613' : '#FFFFFF'} strokeWidth={8} strokeLinejoin="round" strokeLinecap="round" /> : null}
+          {line.length > 1 ? <Polyline points={path} fill="none" stroke={stroke} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" /> : null}
         </Svg>
       ) : null}
       {items.map((item) => {
@@ -155,5 +191,14 @@ function project(coord: LatLng, region: Region, width: number, height: number) {
   return {
     x: ((coord.longitude - west) / region.longitudeDelta) * width,
     y: ((north - coord.latitude) / region.latitudeDelta) * height,
+  };
+}
+
+function unproject(x: number, y: number, region: Region, width: number, height: number): LatLng {
+  const west = region.longitude - region.longitudeDelta / 2;
+  const north = region.latitude + region.latitudeDelta / 2;
+  return {
+    longitude: west + (x / Math.max(width, 1)) * region.longitudeDelta,
+    latitude: north - (y / Math.max(height, 1)) * region.latitudeDelta,
   };
 }

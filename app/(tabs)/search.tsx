@@ -4,12 +4,20 @@ import { View } from 'react-native';
 
 import { AppText, Button, Card, EmptyState, Field, Notice, Screen, Skeleton } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
+import { footprintCaption } from '@/lib/footprint';
 import { floorSpoken, roomNumber, searchNeedle } from '@/lib/indoor';
 import { one } from '@/lib/types';
 import { supabase, supabaseConfigError } from '@/lib/supabase';
 import { type as typeScale } from '@/lib/theme';
 
-type BuildingHit = { id: string; name: string; code: string; description: string | null };
+type BuildingHit = {
+  id: string;
+  name: string;
+  code: string;
+  description: string | null;
+  area_m2?: number | null;
+  perimeter_m?: number | null;
+};
 type RoomHit = {
   id: string;
   name: string;
@@ -18,6 +26,14 @@ type RoomHit = {
   buildings: { name: string } | { name: string }[] | null;
   floors: { name: string; level: number } | { name: string; level: number }[] | null;
 };
+
+async function buildingSearch(q: string) {
+  const columns = 'id,name,code,description,area_m2,perimeter_m';
+  const rich = await supabase.from('buildings').select(columns).or(`name.ilike.%${q}%,code.ilike.%${q}%`).limit(8);
+  if (!rich.error) return rich;
+  if (!/area_m2|perimeter_m/.test(rich.error.message)) return rich;
+  return supabase.from('buildings').select('id,name,code,description').or(`name.ilike.%${q}%,code.ilike.%${q}%`).limit(8);
+}
 
 function where(room: RoomHit) {
   const building = one(room.buildings);
@@ -47,7 +63,7 @@ export default function SearchScreen() {
     const handle = setTimeout(async () => {
       setLoading(true);
       const [buildingResult, roomResult] = await Promise.all([
-        supabase.from('buildings').select('id,name,code,description').or(`name.ilike.%${q}%,code.ilike.%${q}%`).limit(8),
+        buildingSearch(q),
         supabase
           .from('nodes')
           .select('id,name,type,building_id,buildings(name),floors(name,level)')
@@ -148,6 +164,11 @@ export default function SearchScreen() {
             {building.code}
             {building.description ? `. ${building.description}` : ''}
           </AppText>
+          {footprintCaption(building.area_m2, building.perimeter_m) ? (
+            <AppText size={typeScale.label} color={colors.primary}>
+              {footprintCaption(building.area_m2, building.perimeter_m)}
+            </AppText>
+          ) : null}
           <Button label="Show rooms" variant="secondary" onPress={() => openBuilding(building)} />
         </Card>
       ))}
