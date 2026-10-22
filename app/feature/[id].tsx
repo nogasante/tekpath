@@ -10,7 +10,9 @@ import { AppText, Button, Card, Field, KindBadge, Notice, Screen, Skeleton, Stat
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { useToast } from '@/context/Toast';
+import { ReviewMark } from '@/components/ReviewMark';
 import { haptic } from '@/lib/haptics';
+import { friendlyReportError } from '@/lib/moderation';
 import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
 import { uploadReportPhoto } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
@@ -47,6 +49,8 @@ export default function FeatureScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [reviewStatus, setReviewStatus] = useState<string | null>(null);
+  const [reviewNote, setReviewNote] = useState<string | null>(null);
   const submitRef = useRef<() => void>(() => undefined);
   const armReport = useResumeWhenSignedIn(Boolean(session), () => submitRef.current());
 
@@ -69,6 +73,14 @@ export default function FeatureScreen() {
     }
     setFeature((featureResult.data as AccessFeature | null) ?? null);
     if (!reportResult.error) setReports((reportResult.data ?? []) as ReportRow[]);
+    const review = await supabase.from('features').select('review_status,review_note').eq('id', id).maybeSingle();
+    if (!review.error && review.data) {
+      setReviewStatus((review.data.review_status as string | null) ?? null);
+      setReviewNote((review.data.review_note as string | null) ?? null);
+    } else {
+      setReviewStatus(null);
+      setReviewNote(null);
+    }
     setLoading(false);
   }, [id, toast]);
 
@@ -131,7 +143,7 @@ export default function FeatureScreen() {
       void haptic('success');
       await load();
     } catch (err) {
-      const text = err instanceof Error ? err.message : 'Could not save the report.';
+      const text = friendlyReportError(err instanceof Error ? err.message : 'Could not save the report.');
       setError(text);
       toast.show('The report didn’t save.', 'bad');
       void haptic('warning');
@@ -162,7 +174,9 @@ export default function FeatureScreen() {
       <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap', alignItems: 'center' }}>
         <KindBadge kind={feature.kind} />
         <StatusBadge status={feature.status} />
+        <ReviewMark status={reviewStatus} />
       </View>
+      {reviewNote ? <Notice>{reviewNote}</Notice> : null}
       <AppText size={typeScale.label} color={colors.muted}>
         Approximate pin {Number(feature.latitude).toFixed(5)}, {Number(feature.longitude).toFixed(5)}. Notes and photos are visible to anyone using TekPath.
       </AppText>

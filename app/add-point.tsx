@@ -9,8 +9,11 @@ import { useToast } from '@/context/Toast';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/context/Theme';
 import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
+import { pointToast } from '@/lib/moderation';
+import { insertFlexible, rowIsPending } from '@/lib/rows';
 import { campus, type as typeScale } from '@/lib/theme';
 import type { FeatureStatus } from '@/lib/types';
+import { kindLabel, statusLabel } from '@/lib/types';
 
 const kinds = ['ramp', 'lift', 'toilet', 'parking', 'entrance'] as const;
 
@@ -45,9 +48,10 @@ export default function AddPointScreen() {
     setError(null);
     const nodeType = kind === 'toilet' ? 'toilet' : kind === 'parking' ? 'outdoor' : kind === 'lift' ? 'lift' : kind === 'entrance' ? 'entrance' : 'ramp';
     const qr = `TP-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const { data: node, error: nodeError } = await supabase
-      .from('nodes')
-      .insert({
+    const submissionId = globalThis.crypto.randomUUID();
+    const nodeInsert = await insertFlexible(
+      'nodes',
+      {
         type: nodeType,
         name: name.trim(),
         landmark_description: note.trim() || null,
@@ -55,27 +59,33 @@ export default function AddPointScreen() {
         longitude: lng,
         step_free: true,
         qr_code: qr,
-      })
-      .select('id')
-      .single();
+        submission_id: submissionId,
+      },
+      ['submission_id'],
+    );
+    const node = nodeInsert.data;
+    const nodeError = nodeInsert.error;
     if (nodeError || !node) {
       setBusy(false);
       setError(nodeError?.message || 'Could not save the point.');
       toast.show('The point didn’t save.', 'bad');
       return;
     }
-    const { data: feature, error: featureError } = await supabase
-      .from('features')
-      .insert({
+    const featureInsert = await insertFlexible(
+      'features',
+      {
         node_id: node.id,
         kind,
         name: name.trim(),
         status,
         latitude: lat,
         longitude: lng,
-      })
-      .select('id')
-      .single();
+        submission_id: submissionId,
+      },
+      ['submission_id'],
+    );
+    const feature = featureInsert.data;
+    const featureError = featureInsert.error;
     if (featureError || !feature) {
       setBusy(false);
       setError(featureError?.message || 'The place was saved but the accessibility point was not.');
@@ -87,7 +97,8 @@ export default function AddPointScreen() {
       setError(linkError.message);
       return;
     }
-    toast.show('Point saved.');
+    const sentForReview = await rowIsPending('features', feature.id as string);
+    toast.show(pointToast(sentForReview));
     router.replace(`/feature/${feature.id}`);
   }
 
@@ -97,7 +108,7 @@ export default function AddPointScreen() {
 
   return (
     <Screen scroll>
-      <AppText>Move the map until the place sits in the centre, or type the coordinates. Saving adds it to the campus map and the router.</AppText>
+      <AppText>Move the map until the place sits in the centre, or type the coordinates. New places are checked before everyone can see them.</AppText>
       <View style={{ height: 260 }}>
         <CampusMap features={[]} onSelect={() => undefined} onCenter={(lat, lng) => {
           setLatitude(lat.toFixed(6));
@@ -108,13 +119,13 @@ export default function AddPointScreen() {
       <AppText weight="700">Kind</AppText>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {kinds.map((value) => (
-          <Button key={value} label={value} variant={kind === value ? 'primary' : 'secondary'} onPress={() => setKind(value)} />
+          <Button key={value} label={kindLabel(value)} variant={kind === value ? 'primary' : 'secondary'} onPress={() => setKind(value)} />
         ))}
       </View>
       <AppText weight="700">Status you see right now</AppText>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
         {(['working', 'broken', 'unknown'] as FeatureStatus[]).map((value) => (
-          <Button key={value} label={value} variant={status === value ? 'primary' : 'secondary'} onPress={() => setStatus(value)} />
+          <Button key={value} label={statusLabel(value)} variant={status === value ? 'primary' : 'secondary'} onPress={() => setStatus(value)} />
         ))}
       </View>
       <Field label="Landmark note" value={note} onChangeText={setNote} placeholder="Beside the south doors" />

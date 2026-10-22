@@ -4,11 +4,14 @@ import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
 import { PasswordField } from '@/components/PasswordField';
+import { ReviewMark } from '@/components/ReviewMark';
 import { AppText, Button, Card, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { useToast } from '@/context/Toast';
 import { authCopy, authFailureText, classifyAuthError, emailIssue, nameIssue, passwordIssue } from '@/lib/authFlow';
+import { canManageTeam, canOpenAdmin } from '@/lib/moderation';
+import { useCampusRole } from '@/lib/useCampusRole';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { radii, spacing, type as typeScale } from '@/lib/theme';
@@ -67,6 +70,8 @@ export default function AccountScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const guest = session?.user.is_anonymous === true;
+  const role = useCampusRole();
+  const [submissions, setSubmissions] = useState<{ id: string; name: string; status: string; note: string | null; kind: string }[]>([]);
 
   useEffect(() => {
     if (!session) return;
@@ -80,6 +85,51 @@ export default function AccountScreen() {
       if (privateResult.error) setError(privateResult.error.message);
       setDisplayName(profileResult.data?.display_name ?? '');
       setMobility(privateResult.data?.mobility_needs ?? '');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [session]);
+
+  useEffect(() => {
+    if (!session) {
+      setSubmissions([]);
+      return;
+    }
+    let cancelled = false;
+    Promise.all([
+      supabase
+        .from('buildings')
+        .select('id,name,status,review_note')
+        .eq('created_by', session.user.id)
+        .in('status', ['pending', 'rejected'])
+        .order('created_at', { ascending: false })
+        .limit(12),
+      supabase
+        .from('features')
+        .select('id,name,review_status,review_note')
+        .eq('created_by', session.user.id)
+        .in('review_status', ['pending', 'rejected'])
+        .order('created_at', { ascending: false })
+        .limit(12),
+    ]).then(([buildings, features]) => {
+      if (cancelled || buildings.error || features.error) return;
+      setSubmissions([
+        ...(buildings.data ?? []).map((row) => ({
+          id: row.id as string,
+          name: row.name as string,
+          status: row.status as string,
+          note: (row.review_note as string | null) ?? null,
+          kind: 'Building',
+        })),
+        ...(features.data ?? []).map((row) => ({
+          id: row.id as string,
+          name: row.name as string,
+          status: row.review_status as string,
+          note: (row.review_note as string | null) ?? null,
+          kind: 'Place',
+        })),
+      ]);
     });
     return () => {
       cancelled = true;
@@ -268,6 +318,24 @@ export default function AccountScreen() {
             Stored separately from your display name. Other students and signed-out visitors cannot read it. Reports still show your display name, note, and photo.
           </AppText>
           <Button label="Save profile" haptic="light" onPress={save} />
+          {submissions.length > 0 ? (
+            <View style={{ gap: spacing.sm }}>
+              <AppText weight="700">Your submissions</AppText>
+              {submissions.map((item) => (
+                <View key={`${item.kind}-${item.id}`} style={{ gap: 4 }}>
+                  <AppText weight="700">
+                    {item.kind} · {item.name}
+                  </AppText>
+                  <ReviewMark status={item.status} />
+                  {item.note ? (
+                    <AppText size={typeScale.label} color={colors.muted}>
+                      {item.note}
+                    </AppText>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ) : null}
           <Button
             label="Sign out"
             variant="secondary"
@@ -289,6 +357,19 @@ export default function AccountScreen() {
           <Button label="Continue as guest or with email" icon="person" haptic="light" onPress={() => router.push('/login')} />
         </Card>
       )}
+      {canOpenAdmin(role) ? (
+        <Card>
+          <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+            Admin
+          </AppText>
+          <AppText color={colors.muted}>Review new maps and reports. Admins also choose who else can review.</AppText>
+          <Button label="Review the map" icon="map" haptic="light" onPress={() => router.push('/admin')} />
+          <Button label="Reported places" variant="secondary" icon="flag" onPress={() => router.push('/admin/reports')} />
+          {canManageTeam(role) ? (
+            <Button label="Team" variant="secondary" icon="people" onPress={() => router.push('/admin/team')} />
+          ) : null}
+        </Card>
+      ) : null}
       {message ? <Notice tone="good">{message}</Notice> : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}
       <Button label="Print QR checkpoints" variant="secondary" icon="qr-code" onPress={() => router.push('/qr')} />

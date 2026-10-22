@@ -1,4 +1,5 @@
 import { uploadReportPhoto } from '@/lib/photos';
+import { insertFlexible, rowIsPending } from '@/lib/rows';
 import { supabase } from '@/lib/supabase';
 import { buildPublishPlan, type WalkDraft, type WalkNode } from '@/lib/walkGraph';
 
@@ -16,6 +17,7 @@ function missingColumn(message: string, column: string) {
 
 export async function publishWalk(draft: WalkDraft, userId: string) {
   const plan = buildPublishPlan(draft, qrFor);
+  const submissionId = globalThis.crypto.randomUUID();
   let warning: string | null = null;
   let buildingId = plan.buildingId;
   let created: string | null = null;
@@ -24,13 +26,12 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
   try {
     if (!buildingId) {
       if (!plan.building) throw new Error('Name the building before publishing.');
-      let inserted = await supabase.from('buildings').insert(plan.building).select('id').single();
-      if (inserted.error && (missingColumn(inserted.error.message, 'footprint_geojson') || missingColumn(inserted.error.message, 'area_m2'))) {
-        const { footprint_geojson, area_m2, perimeter_m, ...rest } = plan.building;
-        void footprint_geojson;
-        void area_m2;
-        void perimeter_m;
-        inserted = await supabase.from('buildings').insert(rest).select('id').single();
+      const inserted = await insertFlexible(
+        'buildings',
+        { ...plan.building, submission_id: submissionId },
+        ['footprint_geojson', 'area_m2', 'perimeter_m', 'submission_id'],
+      );
+      if (inserted.dropped.some((column) => column === 'footprint_geojson' || column === 'area_m2' || column === 'perimeter_m')) {
         warning = `Saved. Area and perimeter show up after ${WALK_MIGRATION} is applied.`;
       }
       if (inserted.error || !inserted.data) throw new Error(inserted.error?.message || 'Could not save the building.');
@@ -61,18 +62,19 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
           .eq('id', floorId.get(floor.level) as string);
         continue;
       }
-      const inserted = await supabase
-        .from('floors')
-        .insert({
+      const inserted = await insertFlexible(
+        'floors',
+        {
           building_id: buildingId,
           level: floor.level,
           name: floor.name,
           floor_height_m: floor.floor_height_m,
           pressure_hpa_per_m: floor.pressure_hpa_per_m,
           layout: floor.layout,
-        })
-        .select('id')
-        .single();
+          submission_id: submissionId,
+        },
+        ['submission_id'],
+      );
       if (inserted.error || !inserted.data) throw new Error(inserted.error?.message || 'Could not save a floor.');
       floorId.set(floor.level, inserted.data.id as string);
     }
@@ -102,22 +104,14 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
         qr_code: node.qr_code,
         room_number: node.room_number,
         photo_url: photoUrl,
+        submission_id: submissionId,
       };
-      let inserted = await supabase.from('nodes').insert(row).select('id').single();
-      if (inserted.error && (missingColumn(inserted.error.message, 'room_number') || missingColumn(inserted.error.message, 'photo_url'))) {
-        const { room_number, photo_url, ...rest } = row;
-        void room_number;
-        void photo_url;
-        inserted = await supabase.from('nodes').insert(rest).select('id').single();
+      const inserted = await insertFlexible('nodes', row, ['room_number', 'photo_url', 'qr_code', 'submission_id']);
+      if (inserted.dropped.some((column) => column === 'room_number' || column === 'photo_url')) {
         warning = `Saved. Room numbers and photos show up after ${ROOM_MIGRATION} is applied.`;
       }
       if (inserted.error && /nodes_type_chk|check constraint/i.test(inserted.error.message)) {
         throw new Error(`Stairs, landmarks, and steps need ${WALK_MIGRATION} before they can be published.`);
-      }
-      if (inserted.error && /qr_code/i.test(inserted.error.message)) {
-        const { qr_code, ...rest } = row;
-        void qr_code;
-        inserted = await supabase.from('nodes').insert(rest).select('id').single();
       }
       if (inserted.error || !inserted.data) throw new Error(inserted.error?.message || `Could not save ${node.name}.`);
       const id = inserted.data.id as string;
@@ -125,9 +119,9 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
       insertedNodes.push(id);
 
       if (node.featureKind) {
-        const feature = await supabase
-          .from('features')
-          .insert({
+        const feature = await insertFlexible(
+          'features',
+          {
             node_id: id,
             building_id: buildingId,
             kind: node.featureKind,
@@ -135,9 +129,10 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
             status: 'working',
             latitude: node.latitude,
             longitude: node.longitude,
-          })
-          .select('id')
-          .single();
+            submission_id: submissionId,
+          },
+          ['submission_id'],
+        );
         if (feature.data?.id) {
           await supabase.from('nodes').update({ feature_id: feature.data.id }).eq('id', id);
         }
@@ -148,20 +143,27 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
       const from = nodeId.get(edge.fromLocalId);
       const to = nodeId.get(edge.toLocalId);
       if (!from || !to || from === to) continue;
-      const inserted = await supabase.from('edges').insert({
-        from_node: from,
-        to_node: to,
-        type: edge.type,
-        step_free: edge.step_free,
-        length_m: edge.length_m,
-        instruction_text: edge.instruction_text,
-        reverse_instruction_text: edge.reverse_instruction_text,
-        bidirectional: edge.bidirectional,
-      });
+      const inserted = await insertFlexible(
+        'edges',
+        {
+          from_node: from,
+          to_node: to,
+          type: edge.type,
+          step_free: edge.step_free,
+          length_m: edge.length_m,
+          instruction_text: edge.instruction_text,
+          reverse_instruction_text: edge.reverse_instruction_text,
+          bidirectional: edge.bidirectional,
+          submission_id: submissionId,
+        },
+        ['submission_id'],
+      );
       if (inserted.error) throw new Error(inserted.error.message);
     }
 
-    return { buildingId, warning };
+    const probeId = created ?? insertedNodes[0];
+    const sentForReview = probeId ? await rowIsPending(created ? 'buildings' : 'nodes', probeId) : false;
+    return { buildingId, warning, sentForReview };
   } catch (error) {
     if (created) await supabase.from('buildings').delete().eq('id', created);
     else if (insertedNodes.length) await supabase.from('nodes').delete().in('id', insertedNodes);

@@ -72,6 +72,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!session?.user.id) return;
+    void supabase.rpc('claim_admin_if_bootstrapped');
+  }, [session?.user.id]);
+
+  useEffect(() => {
     AsyncStorage.getItem(SCALE_KEY).then((value) => {
       const parsed = Number(value);
       if (parsed === 1 || parsed === 1.25 || parsed === 1.5) setTextScaleState(parsed);

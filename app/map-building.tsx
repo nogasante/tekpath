@@ -4,6 +4,7 @@ import { View } from 'react-native';
 
 import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
+import { insertFlexible, rowIsPending } from '@/lib/rows';
 import { supabase } from '@/lib/supabase';
 import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
 import { campus } from '@/lib/theme';
@@ -48,6 +49,7 @@ export default function MapBuildingScreen() {
   const [eLength, setELength] = useState('8');
   const [eText, setEText] = useState('');
   const [eReverse, setEReverse] = useState('');
+  const submissionId = useRef(globalThis.crypto.randomUUID());
 
   async function refresh(nextBuilding = buildingId) {
     const { data } = await supabase.from('buildings').select('id,name,code,latitude,longitude').order('name');
@@ -78,23 +80,25 @@ export default function MapBuildingScreen() {
   async function addBuilding() {
     if (!requireAuth('building')) return;
     setError(null);
-    const { data, error: insertError } = await supabase
-      .from('buildings')
-      .insert({
+    const inserted = await insertFlexible(
+      'buildings',
+      {
         name: bName.trim(),
         code: bCode.trim().toUpperCase(),
         description: bDesc.trim() || 'Added in TekPath.',
         latitude: Number(bLat),
         longitude: Number(bLng),
-      })
-      .select('id')
-      .single();
-    if (insertError || !data) {
-      setError(insertError?.message || 'Could not add the building.');
+        submission_id: submissionId.current,
+      },
+      ['submission_id'],
+    );
+    if (inserted.error || !inserted.data) {
+      setError(inserted.error?.message || 'Could not add the building.');
       return;
     }
-    setBuildingId(data.id);
-    setMessage(`Saved ${bName.trim()}. Add a floor next.`);
+    const data = inserted.data;
+    setBuildingId(data.id as string);
+    setMessage((await rowIsPending('buildings', data.id as string)) ? 'Sent for review. Add a floor next.' : `Saved ${bName.trim()}. Add a floor next.`);
     setBName('');
     setBCode('');
     await refresh(data.id);
@@ -106,16 +110,21 @@ export default function MapBuildingScreen() {
       setError('Choose a building first.');
       return;
     }
-    const { error: insertError } = await supabase.from('floors').insert({
-      building_id: buildingId,
-      level: Number(fLevel),
-      name: fName.trim(),
-      floor_height_m: Number(fHeight),
-      pressure_hpa_per_m: Number(fHpa),
-    });
-    if (insertError) setError(insertError.message);
+    const inserted = await insertFlexible(
+      'floors',
+      {
+        building_id: buildingId,
+        level: Number(fLevel),
+        name: fName.trim(),
+        floor_height_m: Number(fHeight),
+        pressure_hpa_per_m: Number(fHpa),
+        submission_id: submissionId.current,
+      },
+      ['submission_id'],
+    );
+    if (inserted.error || !inserted.data) setError(inserted.error?.message || 'Could not save the floor.');
     else {
-      setMessage(`Saved floor ${fName.trim()}.`);
+      setMessage((await rowIsPending('floors', inserted.data.id as string)) ? 'Sent for review.' : `Saved floor ${fName.trim()}.`);
       await refresh(buildingId);
     }
   }
@@ -124,20 +133,26 @@ export default function MapBuildingScreen() {
     if (!requireAuth('node') || !buildingId) return;
     const building = buildings.find((item) => item.id === buildingId);
     const qr = `TP-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-    const { error: insertError } = await supabase.from('nodes').insert({
-      building_id: buildingId,
-      floor_id: nFloor,
-      type: nType,
-      name: nName.trim(),
-      landmark_description: nLandmark.trim() || null,
-      latitude: building?.latitude ?? campus.latitude,
-      longitude: building?.longitude ?? campus.longitude,
-      qr_code: qr,
-      step_free: true,
-    });
-    if (insertError) setError(insertError.message);
+    const inserted = await insertFlexible(
+      'nodes',
+      {
+        building_id: buildingId,
+        floor_id: nFloor,
+        type: nType,
+        name: nName.trim(),
+        landmark_description: nLandmark.trim() || null,
+        latitude: building?.latitude ?? campus.latitude,
+        longitude: building?.longitude ?? campus.longitude,
+        qr_code: qr,
+        step_free: true,
+        submission_id: submissionId.current,
+      },
+      ['submission_id'],
+    );
+    if (inserted.error) setError(inserted.error.message);
     else {
-      setMessage(`Saved ${nName.trim()}. QR code ${qr}.`);
+      const pending = inserted.data?.id ? await rowIsPending('nodes', inserted.data.id as string) : false;
+      setMessage(pending ? `Sent for review. QR code ${qr}.` : `Saved ${nName.trim()}. QR code ${qr}.`);
       setNName('');
       await refresh(buildingId);
     }
@@ -149,18 +164,26 @@ export default function MapBuildingScreen() {
       setError('Choose both ends of the edge.');
       return;
     }
-    const { error: insertError } = await supabase.from('edges').insert({
-      from_node: eFrom,
-      to_node: eTo,
-      type: eType,
-      step_free: eType !== 'stairs',
-      length_m: Number(eLength),
-      instruction_text: eText.trim() || `Continue to the next landmark.`,
-      reverse_instruction_text: eReverse.trim() || null,
-      bidirectional: true,
-    });
-    if (insertError) setError(insertError.message);
-    else setMessage('Edge saved. The router can use it on the next search.');
+    const inserted = await insertFlexible(
+      'edges',
+      {
+        from_node: eFrom,
+        to_node: eTo,
+        type: eType,
+        step_free: eType !== 'stairs',
+        length_m: Number(eLength),
+        instruction_text: eText.trim() || `Continue to the next landmark.`,
+        reverse_instruction_text: eReverse.trim() || null,
+        bidirectional: true,
+        submission_id: submissionId.current,
+      },
+      ['submission_id'],
+    );
+    if (inserted.error) setError(inserted.error.message);
+    else {
+      const pending = inserted.data?.id ? await rowIsPending('edges', inserted.data.id as string) : false;
+      setMessage(pending ? 'Sent for review.' : 'Connection saved. The route can use it on the next search.');
+    }
   }
 
   actionRef.current = (action) => {
@@ -172,7 +195,7 @@ export default function MapBuildingScreen() {
 
   return (
     <Screen scroll>
-      <AppText>This writes floors, nodes, and edges into the same graph the router uses. Seeded buildings stay unless you created them.</AppText>
+      <AppText>Add a floor, a place, or a connection. New ones are checked before everyone can follow them. Buildings already on the map stay as they are.</AppText>
       {!session ? (
         <Button label="Continue as guest or with email" onPress={() => router.push({ pathname: '/login', params: { next: '/map-building' } })} />
       ) : null}

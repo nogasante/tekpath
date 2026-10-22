@@ -19,6 +19,7 @@ import { createDetector, floorDetectorTuning, verticalAcceleration } from '@/lib
 import { footprintCaption, formatArea, measureFootprint, ringFromGeoJson, type LngLat } from '@/lib/footprint';
 import { haptic } from '@/lib/haptics';
 import { fetchBuildingFootprints, type OsmBuilding, type OsmEntrance } from '@/lib/overpass';
+import { publishToast } from '@/lib/moderation';
 import { publishWalk } from '@/lib/publishWalk';
 import { calibrateStepLength, smoothHeading } from '@/lib/pdr';
 import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
@@ -644,10 +645,10 @@ export default function WalkScreen() {
       void haptic('success');
       if (result.warning) {
         setBanner({ tone: 'info', text: result.warning });
-        toast.show('Saved');
+        toast.show(result.sentForReview ? 'Sent for review' : 'Saved');
         return;
       }
-      toast.show('This building is on the campus map.');
+      toast.show(publishToast(result.sentForReview));
       router.replace('/');
     } catch (publishError) {
       setBanner({ tone: 'bad', text: publishError instanceof Error ? publishError.message : 'Could not publish.' });

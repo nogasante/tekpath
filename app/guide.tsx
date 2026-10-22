@@ -9,6 +9,7 @@ import { AppText, Button, Card, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { haptic } from '@/lib/haptics';
+import { friendlyReportError } from '@/lib/moderation';
 import { diagramOutline, footprintCaption, ringFromGeoJson } from '@/lib/footprint';
 import { fetchRoute, floorSpoken, spokenStep } from '@/lib/indoor';
 import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
@@ -170,7 +171,7 @@ export default function GuideScreen() {
       setBlockNote(next.ok ? 'Reported. Here is another step-free way.' : next.message || 'No other step-free way from here.');
       void haptic(next.ok ? 'success' : 'warning');
     } catch (err) {
-      setBlockNote(err instanceof Error ? err.message : 'The report did not save.');
+      setBlockNote(friendlyReportError(err instanceof Error ? err.message : 'The report did not save.'));
       void haptic('warning');
     } finally {
       setBusy(false);

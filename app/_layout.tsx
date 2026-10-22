@@ -51,6 +51,9 @@ function RootNavigator() {
         <Stack.Screen name="add-point" options={{ title: 'Add a point' }} />
         <Stack.Screen name="map-building" options={{ title: 'Map a building' }} />
         <Stack.Screen name="walk" options={{ title: 'Walk a building' }} />
+        <Stack.Screen name="admin/index" options={{ title: 'Review the map' }} />
+        <Stack.Screen name="admin/reports" options={{ title: 'Reported places' }} />
+        <Stack.Screen name="admin/team" options={{ title: 'Team' }} />
       </Stack>
     </>
   );

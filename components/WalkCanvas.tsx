@@ -22,6 +22,7 @@ export function WalkCanvas({
   stepCount,
   distanceLabel,
   showYou = true,
+  minHeight = 220,
 }: {
   outline: XY[];
   trace: XY[];
@@ -31,6 +32,7 @@ export function WalkCanvas({
   stepCount?: number;
   distanceLabel?: string;
   showYou?: boolean;
+  minHeight?: number;
 }) {
   const { colors, reduceMotion } = useTheme();
   const pulse = useSharedValue(reduceMotion ? 4.6 : 2.8);
@@ -55,7 +57,7 @@ export function WalkCanvas({
 
   return (
     <View
-      style={{ flex: 1, minHeight: 220, backgroundColor: colors.bg }}
+      style={{ flex: 1, minHeight, backgroundColor: colors.bg }}
       accessibilityLabel="Building outline, the path you have walked, and your heading. North is up."
       onLayout={(event) => {
         const { width, height } = event.nativeEvent.layout;
