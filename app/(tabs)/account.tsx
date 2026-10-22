@@ -6,6 +6,7 @@ import { Pressable, View } from 'react-native';
 import { AppText, Button, Card, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
+import { useToast } from '@/context/Toast';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { radii, spacing, type as typeScale } from '@/lib/theme';
@@ -20,6 +21,7 @@ const scales = [
 export default function AccountScreen() {
   const { colors } = useTheme();
   const { session, textScale, setTextScale, startNode, floor, setStartNode } = useAppState();
+  const toast = useToast();
   const [displayName, setDisplayName] = useState('');
   const [mobility, setMobility] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -56,10 +58,13 @@ export default function AccountScreen() {
       }),
     ]);
     if (profileResult.error || privateResult.error) {
-      setError(profileResult.error?.message || privateResult.error?.message || 'Could not save the profile.');
+      const text = profileResult.error?.message || privateResult.error?.message || 'Could not save the profile.';
+      setError(text);
+      toast.show('The profile did not save.', 'bad');
       void haptic('warning');
     } else {
       setMessage('Profile saved. Mobility needs stay private to this account.');
+      toast.show('Profile saved.');
       void haptic('success');
     }
   }
@@ -114,7 +119,7 @@ export default function AccountScreen() {
             ? `Estimated floor: ${floor.label}, from the barometer.`
             : floor.source === 'none'
               ? `Floor is ${floor.label}. You can correct it while you walk.`
-              : 'No indoor floor yet. Scan a checkpoint to set one.'}
+              : 'No indoor floor yet. Arrive at an entrance, or pick the room you are in.'}
         </AppText>
         <Button label="Choose your start" variant="secondary" icon="locate" onPress={() => router.push('/pick-start')} />
         {startNode ? (

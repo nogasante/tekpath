@@ -135,8 +135,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const setStartNode = useCallback(async (node: StartNode | null) => {
     setStartNodeState(node);
-    setRoute(null);
     if (!node) {
+      setRoute(null);
       setCalibration(null);
       AsyncStorage.removeItem(START_KEY);
       return;

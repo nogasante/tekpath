@@ -275,8 +275,8 @@ export default function MapScreen() {
             </Pressable>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel="Scan a checkpoint QR code"
-              onPress={() => router.push('/scan')}
+              accessibilityLabel="Where are you?"
+              onPress={() => router.push('/pick-start')}
               style={({ pressed }) => [
                 {
                   width: 52,
@@ -289,7 +289,7 @@ export default function MapScreen() {
                 },
                 elevation(colors, 2),
               ]}>
-              <Ionicons name="qr-code" size={22} color={colors.onPrimary} aria-hidden />
+              <Ionicons name="locate" size={22} color={colors.onPrimary} aria-hidden />
             </Pressable>
           </View>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing.sm, paddingRight: 8 }}>

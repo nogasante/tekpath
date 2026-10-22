@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { CampusMap } from '@/components/CampusMap';
@@ -10,12 +11,12 @@ import { AppText, Button, Card, KindBadge, Notice, Screen, Skeleton, StatusBadge
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { useToast } from '@/context/Toast';
-import { useRouteLine } from '@/lib/routeLine';
-import { walkingMinutes } from '@/lib/format';
+import { metresBetween, walkingMinutes } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
-import { supabase } from '@/lib/supabase';
-import { spacing, type as typeScale } from '@/lib/theme';
-import { asRoute, floorLabel, type RouteResult, type RouteStep } from '@/lib/types';
+import { ARRIVAL_METRES, fetchRoute, floorSpoken, loadEntrance, loadNode, placeLine, spokenStep } from '@/lib/indoor';
+import { useRouteLine } from '@/lib/routeLine';
+import { onCampusMetres, spacing, type as typeScale } from '@/lib/theme';
+import { floorLabel, type RouteResult, type RouteStep, type StartNode } from '@/lib/types';
 
 function floorChanges(steps: RouteStep[]) {
   let count = 0;
@@ -25,66 +26,184 @@ function floorChanges(steps: RouteStep[]) {
   return count;
 }
 
+type Approach = {
+  entrance: StartNode;
+  destination: StartNode;
+  route: RouteResult | null;
+  metres: number | null;
+};
+
 export default function RouteScreen() {
   const params = useLocalSearchParams<{ to?: string; from?: string }>();
   const { colors } = useTheme();
   const toast = useToast();
-  const { startNode, setRoute } = useAppState();
-  const fromId = (typeof params.from === 'string' && params.from) || startNode?.id;
+  const { startNode, setStartNode, setRoute } = useAppState();
+  const fromId = (typeof params.from === 'string' && params.from) || undefined;
   const toId = typeof params.to === 'string' ? params.to : undefined;
   const [result, setResult] = useState<RouteResult | null>(null);
+  const [approach, setApproach] = useState<Approach | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [attempt, setAttempt] = useState(0);
+  const handed = useRef(false);
+  const left = useRef(false);
+
+  async function enterIndoors(entrance: StartNode, destinationId: string) {
+    if (handed.current) return;
+    handed.current = true;
+    left.current = true;
+    const indoor = await fetchRoute(entrance.id, destinationId);
+    setRoute(indoor);
+    void setStartNode(entrance);
+    void haptic(indoor.ok ? 'success' : 'warning');
+    router.replace({ pathname: '/guide', params: { to: destinationId } });
+  }
 
   useEffect(() => {
-    if (!fromId || !toId) {
-      setLoading(false);
-      setError('Choose a start and a destination.');
-      return;
-    }
+    if (left.current) return;
+    handed.current = false;
     let cancelled = false;
-    setLoading(true);
-    supabase.rpc('find_step_free_route', { p_from: fromId, p_to: toId }).then(({ data, error: rpcError }) => {
-      if (cancelled) return;
-      if (rpcError) {
-        setError(rpcError.message);
-        setResult(null);
-        toast.show('The route didn’t load.', 'bad');
-      } else {
-        const route = asRoute(data);
+    let watch: Location.LocationSubscription | null = null;
+    async function run() {
+      setLoading(true);
+      setError(null);
+      setResult(null);
+      setApproach(null);
+      try {
+        if (!toId) throw new Error('Choose a destination.');
+        const destination = await loadNode(toId);
+        if (cancelled || !destination) {
+          if (!cancelled) throw new Error('That place is not on the map.');
+          return;
+        }
+        const explicit = fromId ? await loadNode(fromId) : null;
+        const origin = explicit ?? (startNode?.id === destination.id ? null : startNode);
+        if (destination.floorLevel != null) {
+          const entrance = destination.buildingId ? await loadEntrance(destination.buildingId) : null;
+          if (!entrance) throw new Error('This building has no step-free entrance on the map yet.');
+          if (origin?.floorLevel != null || origin?.id === entrance.id) {
+            await enterIndoors(origin?.floorLevel != null ? origin : entrance, destination.id);
+            return;
+          }
+          let outdoor: RouteResult | null = null;
+          if (origin) outdoor = await fetchRoute(origin.id, destination.id);
+          let metres: number | null = null;
+          const permission = await Location.getForegroundPermissionsAsync();
+          if (permission.granted) {
+            const position = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+            const distance = metresBetween(position.coords.latitude, position.coords.longitude, entrance.latitude, entrance.longitude);
+            if (distance <= onCampusMetres) metres = distance;
+            if (distance <= ARRIVAL_METRES) {
+              await enterIndoors(entrance, destination.id);
+              return;
+            }
+            watch = await Location.watchPositionAsync({ accuracy: Location.Accuracy.Balanced, distanceInterval: 5 }, (next) => {
+              if (cancelled) return;
+              const away = metresBetween(next.coords.latitude, next.coords.longitude, entrance.latitude, entrance.longitude);
+              setApproach((current) => (current ? { ...current, metres: away } : current));
+              if (away <= ARRIVAL_METRES) void enterIndoors(entrance, destination.id);
+            });
+          }
+          if (cancelled) return;
+          setApproach({ entrance, destination, route: outdoor?.ok ? outdoor : null, metres });
+          if (outdoor && !outdoor.ok) setResult(outdoor);
+          setLoading(false);
+          return;
+        }
+        if (!origin) throw new Error('Choose where you are, then TekPath can route you there.');
+        const route = await fetchRoute(origin.id, destination.id);
+        if (cancelled) return;
         setResult(route);
         setRoute(route);
-        setError(null);
         void haptic(route.ok ? 'success' : 'warning');
+        setLoading(false);
+      } catch (err) {
+        if (cancelled) return;
+        const message = err instanceof Error ? err.message : 'The route didn’t load.';
+        setError(message);
+        toast.show('The route didn’t load.', 'bad');
+        setLoading(false);
       }
-      setLoading(false);
-    });
+    }
+    void run();
     return () => {
       cancelled = true;
+      watch?.remove();
     };
-  }, [fromId, toId, setRoute, toast, attempt]);
+    // enterIndoors closes over the latest setters. Re-run when the requested places change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fromId, startNode?.id, toId, attempt]);
 
+  const approachLine = useRouteLine(approach?.route?.ok ? approach.route.steps.map((step) => step.node_id) : []);
+  const routeLine = useRouteLine(!approach && result?.ok ? result.steps.map((step) => step.node_id) : []);
   const destination = result?.ok ? result.steps[result.steps.length - 1] : undefined;
-  const routeLine = useRouteLine(result?.ok ? result.steps.map((step) => step.node_id) : []);
 
   return (
     <Screen scroll>
       {loading ? (
         <View style={{ gap: spacing.sm }}>
           <Skeleton height={28} width="70%" />
-          <Skeleton height={88} />
-          <Skeleton height={64} />
+          <Skeleton height={120} />
           <Skeleton height={64} />
         </View>
       ) : null}
       {error ? (
         <View style={{ gap: spacing.sm }}>
           <Notice tone="bad">{error}</Notice>
-          <Button label="Try again" icon="refresh" onPress={() => setAttempt((value) => value + 1)} />
+          <Button
+            label="Try again"
+            icon="refresh"
+            onPress={() => {
+              left.current = false;
+              handed.current = false;
+              setAttempt((value) => value + 1);
+            }}
+          />
+          <Button label="Choose where you are" variant="secondary" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
         </View>
       ) : null}
-      {result && !result.ok ? (
+      {approach ? (
+        <View style={{ gap: spacing.md }}>
+          <LinearGradient colors={['#0F6E56', '#083E32']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 28, padding: spacing.lg, gap: spacing.md }}>
+            <AppText size={typeScale.label} weight="700" color="rgba(255,252,248,0.8)">
+              Outdoor
+            </AppText>
+            <AppText accessibilityRole="header" size={typeScale.title} weight="700" color="#FFFFFF">
+              Walk to the step-free entrance
+            </AppText>
+            <AppText color="rgba(255,252,248,0.9)">{approach.destination.name}</AppText>
+            <AppText color="rgba(255,252,248,0.78)">{placeLine(approach.destination)}</AppText>
+            <HeroStat label="To the entrance" value={approach.metres != null ? `${Math.round(approach.metres)} m` : 'Tap when you arrive'} />
+          </LinearGradient>
+          <Card>
+            <AppText weight="700">{approach.entrance.name}</AppText>
+            <AppText color={colors.muted}>
+              {approach.entrance.buildingName ? `${approach.entrance.buildingName}. ` : ''}
+              Indoor guidance starts here, on {floorSpoken(approach.entrance.floorLevel, approach.entrance.floorName)}. The barometer uses this floor as its starting point.
+            </AppText>
+            {approach.metres != null ? (
+              <AppText weight="700">{Math.round(approach.metres)} m away</AppText>
+            ) : (
+              <AppText color={colors.muted}>Location is off, so tap the button when you reach the door.</AppText>
+            )}
+          </Card>
+          {approachLine.length > 1 ? (
+            <View style={{ height: 180, borderRadius: 16, overflow: 'hidden' }}>
+              <CampusMap features={[]} route={approachLine} interactive={false} padding={{ top: 24, right: 24, bottom: 24, left: 24 }} onSelect={() => undefined} />
+            </View>
+          ) : null}
+          {result && !result.ok ? <Notice tone="bad">{result.message || 'No step-free outdoor path from that start. You can still begin at the entrance.'}</Notice> : null}
+          <Button
+            label="I'm at the entrance"
+            icon="enter"
+            haptic="light"
+            onPress={() => void enterIndoors(approach.entrance, approach.destination.id)}
+          />
+          <Button label="I'm somewhere else" variant="secondary" icon="list" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
+          <Button label="Scan a QR code instead" variant="ghost" icon="qr-code" onPress={() => router.push({ pathname: '/scan', params: { to: toId } })} />
+        </View>
+      ) : null}
+      {!approach && result && !result.ok ? (
         <View style={{ gap: spacing.md }}>
           <LostArt />
           <AppText accessibilityRole="header" size={typeScale.title} weight="700">
@@ -103,17 +222,13 @@ export default function RouteScreen() {
               <Button label={`Open ${blocker.name}`} variant="secondary" onPress={() => router.push(`/feature/${blocker.id}`)} />
             </Card>
           ))}
-          <Button label="Try a different start" icon="locate" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
+          <Button label="Choose where you are" icon="locate" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
           <Button label="Search for another place" icon="search" variant="secondary" onPress={() => router.push('/search')} />
         </View>
       ) : null}
-      {result?.ok ? (
+      {!approach && result?.ok ? (
         <View style={{ gap: spacing.md }}>
-          <LinearGradient
-            colors={['#0F6E56', '#083E32']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={{ borderRadius: 28, padding: spacing.lg, gap: spacing.md, overflow: 'hidden' }}>
+          <LinearGradient colors={['#0F6E56', '#083E32']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={{ borderRadius: 28, padding: spacing.lg, gap: spacing.md, overflow: 'hidden' }}>
             <AppText accessibilityRole="header" size={typeScale.title} weight="700" color="#FFFFFF">
               {destination?.node_name ?? 'Step-free route'}
             </AppText>
@@ -167,24 +282,22 @@ export default function RouteScreen() {
                     {step.order}
                   </AppText>
                 </View>
-                {index < result.steps.length - 1 ? (
-                  <View style={{ width: 2, flex: 1, minHeight: 28, backgroundColor: colors.line, marginTop: 4 }} />
-                ) : null}
+                {index < result.steps.length - 1 ? <View style={{ width: 2, flex: 1, minHeight: 28, backgroundColor: colors.line, marginTop: 4 }} /> : null}
               </View>
               <View style={{ flex: 1, paddingBottom: spacing.md, gap: 4 }}>
                 <AppText weight="700">
                   {step.node_name}
                   {step.floor_level != null ? ` · ${floorLabel(step.floor_level, step.floor_name)}` : ''}
                 </AppText>
-                <AppText color={colors.muted}>{step.instruction}</AppText>
+                <AppText color={colors.muted}>{spokenStep(step)}</AppText>
               </View>
             </View>
           ))}
-          <Button label="Start step by step" icon="walk" haptic="light" onPress={() => router.push('/guide')} />
+          <Button label="Start step by step" icon="walk" haptic="light" onPress={() => router.push({ pathname: '/guide', params: { to: toId } })} />
         </View>
       ) : null}
-      {!fromId ? (
-        <Button label="Choose your start" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
+      {!loading && !fromId && !toId ? (
+        <Button label="Choose where you are" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
       ) : null}
     </Screen>
   );

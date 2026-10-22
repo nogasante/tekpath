@@ -100,7 +100,7 @@ export function FloorPlan({
         ) : null}
       </Svg>
       <AppText size={typeScale.caption} color={colors.muted}>
-        Diagram only. The written landmark is the instruction.
+        The dot is you. Follow the line, then the written landmark.
       </AppText>
     </View>
   );

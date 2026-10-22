@@ -24,7 +24,7 @@ const slides = [
   {
     art: NavigationArt,
     title: 'One landmark at a time',
-    body: 'Scan a checkpoint indoors. If the phone has a barometer, it can notice when a lift changes floor.',
+    body: 'Tell TekPath the room number on the door, or walk to the entrance. A barometer can notice when a lift changes floor.',
   },
 ];
 

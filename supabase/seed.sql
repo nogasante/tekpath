@@ -112,7 +112,7 @@ insert into public.buildings (id, name, code, description, latitude, longitude) 
     '00000000-0000-4000-a000-0000000000b1',
     'Engineering Lecture Block',
     'ELB',
-    'Pilot building with three floors, a ramp entrance, two lifts, and stairs. Indoor positions are a simple diagram, not a measured floor plan. Map pin is approximate.',
+    'Three floors, a step-free ramp, and two lifts. Rooms 001, 101, 102, and 201.',
     6.67580,
     -1.56870
   ),
@@ -261,6 +261,11 @@ update public.nodes set feature_id = '00000000-0000-4000-a000-000000000309' wher
 update public.nodes set feature_id = '00000000-0000-4000-a000-000000000310' where qr_code = 'SCI-RAMP';
 update public.nodes set feature_id = '00000000-0000-4000-a000-000000000311' where qr_code = 'UH-LIFT';
 
+update public.nodes set room_number = '001' where qr_code = 'ELB-LT001';
+update public.nodes set room_number = '101' where qr_code = 'ELB-LT101';
+update public.nodes set room_number = '102' where qr_code = 'ELB-LT102';
+update public.nodes set room_number = '201' where qr_code = 'ELB-LT201';
+
 insert into public.edges (
   from_node, to_node, type, step_free, length_m, bidirectional, instruction_text, reverse_instruction_text
 ) values
@@ -313,17 +318,17 @@ insert into public.edges (
     'Lecture Theatre 001 is ahead on the ground floor.',
     'Leave Lecture Theatre 001 and return to the lobby.'),
   ('00000000-0000-4000-a000-000000000104', '00000000-0000-4000-a000-000000000111', 'lift', true, 4, true,
-    'Take Lift A up to level 1.',
-    'Take Lift A down to the ground floor.'),
+    'Take Lift A to Floor 1.',
+    'Take Lift A to Ground.'),
   ('00000000-0000-4000-a000-000000000111', '00000000-0000-4000-a000-000000000121', 'lift', true, 4, true,
-    'Take Lift A up to level 2. Step out when the doors open.',
-    'Take Lift A down to level 1.'),
+    'Take Lift A to Floor 2. Step out when the doors open.',
+    'Take Lift A to Floor 1.'),
   ('00000000-0000-4000-a000-000000000105', '00000000-0000-4000-a000-000000000112', 'lift', true, 4, true,
-    'Take Lift B up to level 1.',
-    'Take Lift B down to the ground floor.'),
+    'Take Lift B to Floor 1.',
+    'Take Lift B to Ground.'),
   ('00000000-0000-4000-a000-000000000112', '00000000-0000-4000-a000-000000000122', 'lift', true, 4, true,
-    'Take Lift B up to level 2. Step out when the doors open.',
-    'Take Lift B down to level 1.'),
+    'Take Lift B to Floor 2. Step out when the doors open.',
+    'Take Lift B to Floor 1.'),
   ('00000000-0000-4000-a000-000000000106', '00000000-0000-4000-a000-000000000113', 'stairs', false, 4, true,
     'Climb the stairs to level 1.',
     'Go down the stairs to the ground floor.'),

@@ -47,6 +47,7 @@ export default function LoginScreen() {
     setBusy(false);
     if (authError) {
       setError(authError.message);
+      toast.show('The account could not be created.', 'bad');
       return;
     }
     if (data.session) done();
@@ -61,8 +62,10 @@ export default function LoginScreen() {
       options: { emailRedirectTo: Linking.createURL('/') },
     });
     setBusy(false);
-    if (authError) setError(authError.message);
-    else setMessage('Check your email for a sign-in link.');
+    if (authError) {
+      setError(authError.message);
+      toast.show('The sign-in link could not be sent.', 'bad');
+    } else setMessage('Check your email for a sign-in link.');
   }
 
   return (

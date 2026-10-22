@@ -42,7 +42,7 @@ export default function ScanScreen() {
   return (
     <Screen scroll>
       <AppText>
-        Point the camera at a TekPath QR code on a door or lift. The code sets your exact start and, indoors, calibrates the floor for the barometer.
+        Optional. If a checkpoint code is posted, scanning it sets your exact place. You can also type the room number on the door, with no code at all.
       </AppText>
       {permission?.granted ? (
         <View style={{ height: 280, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.line }}>
