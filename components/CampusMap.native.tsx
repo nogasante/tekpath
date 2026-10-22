@@ -23,6 +23,7 @@ import {
   type MapProps,
   type Region,
 } from '@/components/mapShared';
+import { AppText } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
 
 export type { MapHandle, MapPadding } from '@/components/mapShared';
@@ -31,7 +32,7 @@ export { MapControls };
 const provider = Platform.OS === 'android' ? PROVIDER_GOOGLE : undefined;
 
 export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
-  { features, selectedId, onSelect, onCenter, padding, route, polygon, onMapPress, focus, interactive = true },
+  { features, selectedId, onSelect, onCenter, padding, route, polygon, onMapPress, focus, cornerPins, interactive = true },
   ref,
 ) {
   const { mode, reduceMotion } = useTheme();
@@ -161,6 +162,32 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
           setRegion(clamped);
           onCenter?.(clamped.latitude, clamped.longitude);
         }}>
+        {(cornerPins ?? [])
+          .filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude))
+          .map((point, index) => (
+            <Marker
+              key={`corner-${index}`}
+              coordinate={point}
+              anchor={{ x: 0.5, y: 0.5 }}
+              tracksViewChanges
+              accessibilityLabel={`Corner ${index + 1}`}>
+              <View
+                style={{
+                  width: 28,
+                  height: 28,
+                  borderRadius: 14,
+                  backgroundColor: stroke,
+                  borderWidth: 2,
+                  borderColor: '#FFFFFF',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                <AppText size={13} weight="700" color="#FFFFFF">
+                  {index + 1}
+                </AppText>
+              </View>
+            </Marker>
+          ))}
         {outline.length > 2 ? (
           <Polygon
             coordinates={outline}

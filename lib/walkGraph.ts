@@ -151,7 +151,7 @@ export function createDraft(input: {
     buildingId: input.buildingId ?? null,
     buildingName: input.buildingName.trim() || 'Untitled building',
     buildingCode: (input.buildingCode?.trim() || suggestCode(input.buildingName)).toUpperCase().slice(0, 16),
-    description: input.description?.trim() || 'Mapped by walking the outline.',
+    description: input.description?.trim() || 'Walked with TekPath.',
     entrance,
     axisDeg: measured.axisDeg,
     ring: closeLngLatRing(input.ring),

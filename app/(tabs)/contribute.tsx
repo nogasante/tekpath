@@ -24,11 +24,11 @@ export default function ContributeScreen() {
         </Card>
       )}
       <Button label="Add an accessibility point" icon="location" haptic="light" onPress={() => router.push('/add-point')} />
-      <Button label="Map a building by walking" icon="walk" variant="secondary" onPress={() => router.push('/walk')} />
-      <Button label="Enter floors and nodes by hand" icon="business" variant="ghost" onPress={() => router.push('/map-building')} />
+      <Button label="Walk a building" icon="walk" variant="secondary" onPress={() => router.push('/walk')} />
+      <Button label="Add floors by hand" icon="business" variant="ghost" onPress={() => router.push('/map-building')} />
       <Button label="Print QR checkpoints" icon="qr-code" variant="secondary" onPress={() => router.push('/qr')} />
       <AppText size={typeScale.label} color={colors.muted}>
-        A new point is saved to the campus database and shows on the map for everyone. Walking a building uses its outline, then adds the floors, nodes, and edges the router walks.
+        A new point shows on the map for everyone. Walking a building adds its rooms, lifts, and ramps to indoor routes.
       </AppText>
     </Screen>
   );

@@ -31,7 +31,7 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
         void area_m2;
         void perimeter_m;
         inserted = await supabase.from('buildings').insert(rest).select('id').single();
-        warning = `Apply ${WALK_MIGRATION} to store the outline, area, and perimeter on the building. The floor plans still use the outline.`;
+        warning = `Saved. Area and perimeter show up after ${WALK_MIGRATION} is applied.`;
       }
       if (inserted.error || !inserted.data) throw new Error(inserted.error?.message || 'Could not save the building.');
       buildingId = inserted.data.id as string;
@@ -39,7 +39,7 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
     } else {
       const updated = await supabase.from('buildings').update(plan.footprintUpdate).eq('id', buildingId).select('id');
       if (updated.error && (missingColumn(updated.error.message, 'footprint_geojson') || missingColumn(updated.error.message, 'area_m2'))) {
-        warning = `Apply ${WALK_MIGRATION} to store the outline on this building.`;
+        warning = `Saved. The outline is kept on this phone until ${WALK_MIGRATION} is applied.`;
       }
     }
 
@@ -109,10 +109,10 @@ export async function publishWalk(draft: WalkDraft, userId: string) {
         void room_number;
         void photo_url;
         inserted = await supabase.from('nodes').insert(rest).select('id').single();
-        warning = `Apply ${ROOM_MIGRATION} to store room numbers and photos. The route graph was saved.`;
+        warning = `Saved. Room numbers and photos show up after ${ROOM_MIGRATION} is applied.`;
       }
       if (inserted.error && /nodes_type_chk|check constraint/i.test(inserted.error.message)) {
-        throw new Error(`Apply ${WALK_MIGRATION} before publishing stairs, landmarks, or steps.`);
+        throw new Error(`Stairs, landmarks, and steps need ${WALK_MIGRATION} before they can be published.`);
       }
       if (inserted.error && /qr_code/i.test(inserted.error.message)) {
         const { qr_code, ...rest } = row;

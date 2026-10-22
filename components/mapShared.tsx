@@ -38,6 +38,8 @@ export type MapProps = {
   onMapPress?: (coord: LatLng) => void;
   /** Centre the map here, for tracing a building rather than the whole campus. */
   focus?: LatLng;
+  /** Numbered pins for corners the person has tapped. */
+  cornerPins?: LatLng[];
   interactive?: boolean;
 };
 

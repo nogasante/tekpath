@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { footprintsNear } from '../lib/campusFootprints.ts';
 import { containsPoint, dominantAxisDeg, measureFootprint, nearestOnOutline, snapToOutline, toLngLat, type LngLat, type XY } from '../lib/footprint.ts';
 import { parseOverpass } from '../lib/overpass.ts';
 import { calibrateStepLength, closeLoop, detectSteps, integrateTrace, smoothHeading, snapHeading, straighten } from '../lib/pdr.ts';
@@ -238,4 +239,10 @@ test('OSM entrances on the outline are offered with the building', () => {
   assert.ok(parsed[0].areaM2 > 300);
   assert.equal(parsed[0].entrances.length, 1);
   assert.equal(parsed[0].entrances[0].name, 'North door');
+});
+
+test('saved KNUST outlines resolve without a network call', () => {
+  const library = footprintsNear(6.675352, -1.573008, 40);
+  assert.ok(library.some((building) => building.name === 'Prempeh II Library'));
+  assert.equal(footprintsNear(0, 0, 40).length, 0);
 });

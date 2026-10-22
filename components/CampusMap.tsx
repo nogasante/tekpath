@@ -1,6 +1,6 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
-import { Pressable, View } from 'react-native';
-import Svg, { Polygon, Polyline } from 'react-native-svg';
+import { Image, Pressable, View } from 'react-native';
+import Svg, { Circle, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
 
 import {
   ClusterMark,
@@ -28,7 +28,7 @@ export { MapControls };
 
 /** Web stand-in. The phone uses Google Maps or Apple Maps via react-native-maps. */
 export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
-  { features, selectedId, onSelect, onCenter, padding, route, polygon, onMapPress, focus, interactive = true },
+  { features, selectedId, onSelect, onCenter, padding, route, polygon, onMapPress, focus, cornerPins, interactive = true },
   ref,
 ) {
   const { mode } = useTheme();
@@ -80,6 +80,8 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
   }, [line.map((point) => `${point.latitude},${point.longitude}`).join('|'), points.length, size.width, size.height]);
 
   const stroke = mode === 'dark' ? '#7DDFC3' : '#0F6E56';
+  const corners = (cornerPins ?? []).filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
+  const tiles = osmTiles(region, size.width, size.height);
   const outline = (polygon ?? []).filter((point) => Number.isFinite(point.latitude) && Number.isFinite(point.longitude));
   const outlinePath = outline
     .map((point) => {
@@ -99,6 +101,19 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
       accessibilityLabel="KNUST campus map"
       style={{ flex: 1, minHeight: 240, backgroundColor: quiet ? (mode === 'dark' ? '#171E1B' : '#E6E2D8') : landColor(mode), overflow: 'hidden' }}
       onLayout={(event) => setSize({ width: event.nativeEvent.layout.width, height: event.nativeEvent.layout.height })}>
+      <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0 }}>
+        {tiles.map((tile) => (
+          <Image
+            key={tile.key}
+            source={{ uri: tile.uri }}
+            fadeDuration={0}
+            style={{ position: 'absolute', left: tile.left, top: tile.top, width: tile.width, height: tile.height }}
+          />
+        ))}
+      </View>
+      {mode === 'dark' ? (
+        <View pointerEvents="none" style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(8,14,12,0.38)' }} />
+      ) : null}
       {onMapPress ? (
         <Pressable
           accessibilityLabel="Map. Tap to add a corner."
@@ -120,11 +135,25 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
           }}
         />
       ) : null}
-      {outline.length > 2 || line.length > 1 ? (
+      {outline.length > 2 || line.length > 1 || corners.length ? (
         <Svg width={size.width} height={size.height} style={{ position: 'absolute', left: 0, top: 0 }} pointerEvents="none">
           {outline.length > 2 ? <Polygon points={outlinePath} fill={mode === 'dark' ? 'rgba(17,122,99,0.35)' : 'rgba(15,110,86,0.22)'} stroke={stroke} strokeWidth={2} /> : null}
           {line.length > 1 ? <Polyline points={path} fill="none" stroke={mode === 'dark' ? '#0E1613' : '#FFFFFF'} strokeWidth={8} strokeLinejoin="round" strokeLinecap="round" /> : null}
           {line.length > 1 ? <Polyline points={path} fill="none" stroke={stroke} strokeWidth={4} strokeLinejoin="round" strokeLinecap="round" /> : null}
+          {corners.map((coord, index) => {
+            const spot = project(coord, region, size.width, size.height);
+            return (
+              <Circle key={`corner-${index}`} cx={spot.x} cy={spot.y} r={12} fill={stroke} stroke="#FFFFFF" strokeWidth={2} />
+            );
+          })}
+          {corners.map((coord, index) => {
+            const spot = project(coord, region, size.width, size.height);
+            return (
+              <SvgText key={`corner-n-${index}`} x={spot.x} y={spot.y + 4} fill="#FFFFFF" fontSize={12} fontWeight="700" textAnchor="middle">
+                {index + 1}
+              </SvgText>
+            );
+          })}
         </Svg>
       ) : null}
       {items.map((item) => {
@@ -166,7 +195,7 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
         weight="700"
         color={mode === 'dark' ? '#8FCBB8' : '#0F6E56'}
         style={{ position: 'absolute', left: 16, bottom: pad.bottom + 10 }}>
-        KNUST
+        KNUST · © OpenStreetMap
       </AppText>
       {selected ? (
         <Pressable
@@ -185,20 +214,72 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
   );
 });
 
-function project(coord: LatLng, region: Region, width: number, height: number) {
+function mercatorX(longitude: number) {
+  return (longitude + 180) / 360;
+}
+
+function mercatorY(latitude: number) {
+  const clamped = Math.max(-85, Math.min(85, latitude));
+  const rad = (clamped * Math.PI) / 180;
+  return (1 - Math.log(Math.tan(rad) + 1 / Math.cos(rad)) / Math.PI) / 2;
+}
+
+function frame(region: Region) {
   const west = region.longitude - region.longitudeDelta / 2;
+  const east = region.longitude + region.longitudeDelta / 2;
   const north = region.latitude + region.latitudeDelta / 2;
+  const south = region.latitude - region.latitudeDelta / 2;
+  return { x0: mercatorX(west), x1: mercatorX(east), y0: mercatorY(north), y1: mercatorY(south) };
+}
+
+function project(coord: LatLng, region: Region, width: number, height: number) {
+  const box = frame(region);
   return {
-    x: ((coord.longitude - west) / region.longitudeDelta) * width,
-    y: ((north - coord.latitude) / region.latitudeDelta) * height,
+    x: ((mercatorX(coord.longitude) - box.x0) / (box.x1 - box.x0)) * width,
+    y: ((mercatorY(coord.latitude) - box.y0) / (box.y1 - box.y0)) * height,
   };
 }
 
 function unproject(x: number, y: number, region: Region, width: number, height: number): LatLng {
-  const west = region.longitude - region.longitudeDelta / 2;
-  const north = region.latitude + region.latitudeDelta / 2;
-  return {
-    longitude: west + (x / Math.max(width, 1)) * region.longitudeDelta,
-    latitude: north - (y / Math.max(height, 1)) * region.latitudeDelta,
-  };
+  const box = frame(region);
+  const mx = box.x0 + (x / Math.max(width, 1)) * (box.x1 - box.x0);
+  const my = box.y0 + (y / Math.max(height, 1)) * (box.y1 - box.y0);
+  const longitude = mx * 360 - 180;
+  const latitude = (Math.atan(Math.sinh(Math.PI * (1 - 2 * my))) * 180) / Math.PI;
+  return { longitude, latitude };
+}
+
+function osmTiles(region: Region, width: number, height: number) {
+  if (width < 20 || height < 20) return [];
+  const box = frame(region);
+  let zoom = Math.max(13, Math.min(18, Math.round(zoomForDelta(region.longitudeDelta))));
+  let tiles: { key: string; uri: string; left: number; top: number; width: number; height: number }[] = [];
+  while (zoom >= 13) {
+    const scale = 2 ** zoom;
+    const x0 = Math.floor(box.x0 * scale);
+    const x1 = Math.floor(box.x1 * scale);
+    const y0 = Math.floor(box.y0 * scale);
+    const y1 = Math.floor(box.y1 * scale);
+    const count = (x1 - x0 + 1) * (y1 - y0 + 1);
+    if (count > 24 && zoom > 13) {
+      zoom -= 1;
+      continue;
+    }
+    tiles = [];
+    for (let x = x0; x <= x1; x += 1) {
+      for (let y = y0; y <= y1; y += 1) {
+        const wrapped = ((x % scale) + scale) % scale;
+        tiles.push({
+          key: `${zoom}/${x}/${y}`,
+          uri: `https://tile.openstreetmap.org/${zoom}/${wrapped}/${y}.png`,
+          left: ((x / scale - box.x0) / (box.x1 - box.x0)) * width,
+          top: ((y / scale - box.y0) / (box.y1 - box.y0)) * height,
+          width: (1 / scale / (box.x1 - box.x0)) * width + 0.5,
+          height: (1 / scale / (box.y1 - box.y0)) * height + 0.5,
+        });
+      }
+    }
+    break;
+  }
+  return tiles;
 }
