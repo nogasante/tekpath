@@ -76,7 +76,7 @@ export default function MapBuildingScreen() {
       .insert({
         name: bName.trim(),
         code: bCode.trim().toUpperCase(),
-        description: bDesc.trim() || 'Added from TekPath. Coordinates should be treated as approximate unless surveyed.',
+        description: bDesc.trim() || 'Added in TekPath.',
         latitude: Number(bLat),
         longitude: Number(bLng),
       })

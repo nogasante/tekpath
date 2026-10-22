@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { Wordmark } from '@/components/Logo';
 import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
+import { useToast } from '@/context/Toast';
 import { supabase } from '@/lib/supabase';
 import { type as typeScale } from '@/lib/theme';
 
@@ -17,6 +18,7 @@ export default function LoginScreen() {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const { colors } = useTheme();
+  const toast = useToast();
 
   function done() {
     if (typeof params.next === 'string' && params.next.startsWith('/')) router.replace(params.next as '/');
@@ -28,8 +30,10 @@ export default function LoginScreen() {
     setError(null);
     const { error: authError } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
-    if (authError) setError(authError.message);
-    else done();
+    if (authError) {
+      setError(authError.message);
+      toast.show('Sign-in didn’t work. Check the email and password.', 'bad');
+    } else done();
   }
 
   async function signUp() {
@@ -46,7 +50,7 @@ export default function LoginScreen() {
       return;
     }
     if (data.session) done();
-    else setMessage('Check your email to confirm the account, then sign in. On a local Supabase stack the message is in Mailpit at http://127.0.0.1:54324.');
+    else setMessage('Check your email to confirm the account, then sign in.');
   }
 
   async function magic() {
@@ -58,7 +62,7 @@ export default function LoginScreen() {
     });
     setBusy(false);
     if (authError) setError(authError.message);
-    else setMessage('Magic link sent. On a local stack, open Mailpit at http://127.0.0.1:54324 and use the link.');
+    else setMessage('Check your email for a sign-in link.');
   }
 
   return (

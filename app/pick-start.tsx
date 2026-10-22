@@ -2,6 +2,8 @@ import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 
+import { View } from 'react-native';
+
 import { AppText, Button, Field, ListRow, Notice, Screen, Skeleton } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
@@ -19,18 +21,28 @@ export default function PickStartScreen() {
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
     supabase
       .from('nodes')
       .select(nodeSelect)
       .order('name')
       .then(({ data, error: queryError }) => {
+        if (cancelled) return;
         if (queryError) setError(queryError.message);
-        else setNodes((data ?? []).map((row) => toStartNode(row)));
+        else {
+          setError(null);
+          setNodes((data ?? []).map((row) => toStartNode(row)));
+        }
         setLoading(false);
       });
-  }, []);
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt]);
 
   const shown = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -84,7 +96,12 @@ export default function PickStartScreen() {
       <Button label="Use my location if I'm on campus" variant="secondary" icon="locate" onPress={useLocation} />
       <Field label="Filter places" value={query} onChangeText={setQuery} placeholder="Forecourt, Lift A, library" />
       {loading ? <Skeleton height={64} /> : null}
-      {error ? <Notice tone="bad">{error}</Notice> : null}
+      {error ? (
+        <View style={{ gap: 8 }}>
+          <Notice tone="bad">{error}</Notice>
+          <Button label="Try again" icon="refresh" onPress={() => setAttempt((value) => value + 1)} />
+        </View>
+      ) : null}
       {shown.map((node) => (
         <ListRow
           key={node.id}

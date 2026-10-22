@@ -3,12 +3,14 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
 
+import { CampusMap } from '@/components/CampusMap';
 import { LostArt } from '@/components/Illustrations';
 import { AppText, Button, Card, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
+import { useToast } from '@/context/Toast';
+import { useRouteLine } from '@/lib/routeLine';
 import { walkingMinutes } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
@@ -26,12 +28,14 @@ function floorChanges(steps: RouteStep[]) {
 export default function RouteScreen() {
   const params = useLocalSearchParams<{ to?: string; from?: string }>();
   const { colors } = useTheme();
+  const toast = useToast();
   const { startNode, setRoute } = useAppState();
   const fromId = (typeof params.from === 'string' && params.from) || startNode?.id;
   const toId = typeof params.to === 'string' ? params.to : undefined;
   const [result, setResult] = useState<RouteResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
     if (!fromId || !toId) {
@@ -46,6 +50,7 @@ export default function RouteScreen() {
       if (rpcError) {
         setError(rpcError.message);
         setResult(null);
+        toast.show('The route didn’t load.', 'bad');
       } else {
         const route = asRoute(data);
         setResult(route);
@@ -58,9 +63,10 @@ export default function RouteScreen() {
     return () => {
       cancelled = true;
     };
-  }, [fromId, toId, setRoute]);
+  }, [fromId, toId, setRoute, toast, attempt]);
 
   const destination = result?.ok ? result.steps[result.steps.length - 1] : undefined;
+  const routeLine = useRouteLine(result?.ok ? result.steps.map((step) => step.node_id) : []);
 
   return (
     <Screen scroll>
@@ -72,7 +78,12 @@ export default function RouteScreen() {
           <Skeleton height={64} />
         </View>
       ) : null}
-      {error ? <Notice tone="bad">{error}</Notice> : null}
+      {error ? (
+        <View style={{ gap: spacing.sm }}>
+          <Notice tone="bad">{error}</Notice>
+          <Button label="Try again" icon="refresh" onPress={() => setAttempt((value) => value + 1)} />
+        </View>
+      ) : null}
       {result && !result.ok ? (
         <View style={{ gap: spacing.md }}>
           <LostArt />
@@ -127,7 +138,11 @@ export default function RouteScreen() {
                 Step-free
               </AppText>
             </View>
-            <RoutePreview steps={result.steps} />
+            {routeLine.length > 1 ? (
+              <View style={{ height: 168, borderRadius: 16, overflow: 'hidden' }}>
+                <CampusMap features={[]} route={routeLine} interactive={false} padding={{ top: 24, right: 24, bottom: 24, left: 24 }} onSelect={() => undefined} />
+              </View>
+            ) : null}
           </LinearGradient>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Stat label="Landmarks" value={String(result.steps.length)} />
@@ -169,7 +184,7 @@ export default function RouteScreen() {
         </View>
       ) : null}
       {!fromId ? (
-        <Button label="Pick where you are" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
+        <Button label="Choose your start" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
       ) : null}
     </Screen>
   );
@@ -184,27 +199,6 @@ function HeroStat({ label, value }: { label: string; value: string }) {
       <AppText size={typeScale.headline} weight="700" color="#FFFFFF">
         {value}
       </AppText>
-    </View>
-  );
-}
-
-function RoutePreview({ steps }: { steps: RouteStep[] }) {
-  const width = 240;
-  const height = 56;
-  const points = steps.map((step, index) => {
-    const x = 16 + (index * (width - 32)) / Math.max(1, steps.length - 1);
-    const y = step.floor_level == null ? 40 : 16 + (2 - Math.min(2, step.floor_level)) * 10;
-    return { x, y, change: index > 0 && step.floor_level !== steps[index - 1].floor_level };
-  });
-  const d = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
-  return (
-    <View accessibilityLabel="Preview of the route, with marks where the floor changes" style={{ backgroundColor: 'rgba(255,252,248,0.1)', borderRadius: 16, paddingVertical: 6 }}>
-      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
-        <Path d={d} stroke="#FFFFFF" strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
-        {points.map((point, index) => (
-          <Circle key={index} cx={point.x} cy={point.y} r={point.change ? 4.5 : 3} fill={point.change ? '#E8A06A' : '#FFFFFF'} />
-        ))}
-      </Svg>
     </View>
   );
 }

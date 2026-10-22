@@ -5,6 +5,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useNetworkState } from 'expo-network';
+
 import { CampusMap, MapControls, type MapHandle, type MapPadding } from '@/components/CampusMap';
 import { Frosted } from '@/components/Glass';
 import { Mark } from '@/components/Logo';
@@ -12,6 +14,8 @@ import { Sheet } from '@/components/Sheet';
 import { AppText, Chip, EmptyState, KindBadge, Notice, Skeleton, StatusBadge, Button } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
+import { useToast } from '@/context/Toast';
+import { useRouteLine } from '@/lib/routeLine';
 import { formatAgo, formatDistance, metresBetween } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { WELCOME_KEY } from '@/lib/welcome';
@@ -38,7 +42,11 @@ export default function MapScreen() {
   const wide = width >= 900;
   const insets = useSafeAreaInsets();
   const { colors, reduceMotion } = useTheme();
-  const { startNode } = useAppState();
+  const { startNode, route } = useAppState();
+  const toast = useToast();
+  const network = useNetworkState();
+  const offline = network.isConnected === false;
+  const routeLine = useRouteLine(route?.ok ? route.steps.map((step) => step.node_id) : []);
   const mapRef = useRef<MapHandle>(null);
   const listRef = useRef<ScrollView>(null);
   const [boxHeight, setBoxHeight] = useState(0);
@@ -67,8 +75,10 @@ export default function MapScreen() {
       .from('features')
       .select('id,node_id,building_id,kind,name,status,last_reported_at,latitude,longitude')
       .order('name');
-    if (queryError) setError(queryError.message);
-    else {
+    if (queryError) {
+      setError(queryError.message);
+      toast.show('The campus list didn’t load.', 'bad');
+    } else {
       setError(null);
       setFeatures((data ?? []) as AccessFeature[]);
     }
@@ -83,7 +93,7 @@ export default function MapScreen() {
       setPhotos(next);
     }
     setLoading(false);
-  }, []);
+  }, [toast]);
 
   useEffect(() => {
     if (supabaseConfigError) return;
@@ -149,10 +159,13 @@ export default function MapScreen() {
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={startNode ? `Start point ${startNode.name}. Change start.` : 'Set a start point'}
-      onPress={() => router.push('/pick-start')}
-      style={{ minHeight: 48, justifyContent: 'center' }}>
+      onPress={() => {
+        void haptic('selection');
+        router.push('/pick-start');
+      }}
+      style={({ pressed }) => ({ minHeight: 48, justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}>
       <AppText size={typeScale.label} weight="700" color={colors.primary}>
-        {startNode ? `From ${startNode.name}` : 'Set where you are'}
+        {startNode ? `From ${startNode.name}` : 'Choose your start'}
       </AppText>
     </Pressable>
   );
@@ -195,7 +208,7 @@ export default function MapScreen() {
         </View>
       ) : (
         <AppText size={typeScale.label} color={colors.muted}>
-          Broken points come first. Pins show the kind, and a badge shows Working, Broken, or Unknown.
+          Tap a place to see if it is working. Broken ones are listed first.
         </AppText>
       )}
       {loading ? (
@@ -205,7 +218,13 @@ export default function MapScreen() {
           <Skeleton height={76} />
         </View>
       ) : null}
-      {error ? <Notice tone="bad">{error}</Notice> : null}
+      {offline ? <Notice tone="info">You are offline. The list will refresh when you reconnect.</Notice> : null}
+      {error ? (
+        <View style={{ gap: spacing.sm }}>
+          <Notice tone="bad">The campus list didn’t load. Check the connection and try again.</Notice>
+          <Button label="Try again" icon="refresh" onPress={() => { setLoading(true); void load(); }} />
+        </View>
+      ) : null}
       {!loading && shown.length === 0 ? (
         <EmptyState icon="filter" title="Nothing in this filter" body="Broken lifts and ramps show up here as people report them." />
       ) : null}
@@ -235,6 +254,7 @@ export default function MapScreen() {
             void haptic('selection');
           }}
           padding={padding}
+          route={routeLine}
           ref={mapRef}
         />
         <View

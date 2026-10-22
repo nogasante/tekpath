@@ -9,6 +9,7 @@ import { ConfirmedArt } from '@/components/Illustrations';
 import { AppText, Button, Card, Field, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
+import { useToast } from '@/context/Toast';
 import { haptic } from '@/lib/haptics';
 import { uploadReportPhoto } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
@@ -35,6 +36,7 @@ export default function FeatureScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { colors } = useTheme();
   const { session, startNode } = useAppState();
+  const toast = useToast();
   const [feature, setFeature] = useState<AccessFeature | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
   const [status, setStatus] = useState<FeatureStatus>('broken');
@@ -47,6 +49,8 @@ export default function FeatureScreen() {
 
   const load = useCallback(async () => {
     if (!id) return;
+    setLoading(true);
+    setError(null);
     const [featureResult, reportResult] = await Promise.all([
       supabase.from('features').select('id,node_id,building_id,kind,name,status,last_reported_at,latitude,longitude').eq('id', id).maybeSingle(),
       supabase
@@ -56,12 +60,14 @@ export default function FeatureScreen() {
         .order('created_at', { ascending: false })
         .limit(20),
     ]);
-    if (featureResult.error) setError(featureResult.error.message);
+    if (featureResult.error || reportResult.error) {
+      setError(featureResult.error?.message || reportResult.error?.message || 'Could not load this place.');
+      toast.show('This place didn’t load.', 'bad');
+    }
     setFeature((featureResult.data as AccessFeature | null) ?? null);
-    if (reportResult.error) setError(reportResult.error.message);
-    else setReports((reportResult.data ?? []) as ReportRow[]);
+    if (!reportResult.error) setReports((reportResult.data ?? []) as ReportRow[]);
     setLoading(false);
-  }, [id]);
+  }, [id, toast]);
 
   useEffect(() => {
     load();
@@ -117,10 +123,13 @@ export default function FeatureScreen() {
       setNote('');
       setPhoto(null);
       setMessage('Report saved. The map and the router use this status now.');
+      toast.show('Report saved.');
       void haptic('success');
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Could not save the report.');
+      const text = err instanceof Error ? err.message : 'Could not save the report.';
+      setError(text);
+      toast.show('The report didn’t save.', 'bad');
       void haptic('warning');
     } finally {
       setBusy(false);
@@ -131,7 +140,8 @@ export default function FeatureScreen() {
     return (
       <Screen scroll>
         {loading ? <Skeleton height={36} width="80%" /> : null}
-        <AppText>{error || (loading ? 'Loading this point…' : 'This point is not on the map.')}</AppText>
+        <AppText>{error ? 'This place didn’t load.' : loading ? 'Loading this place…' : 'This place is not on the map.'}</AppText>
+        {error ? <Button label="Try again" icon="refresh" onPress={() => void load()} /> : null}
       </Screen>
     );
   }

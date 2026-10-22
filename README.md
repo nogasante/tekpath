@@ -1,6 +1,6 @@
 # TekPath
 
-TekPath is a crowdsourced campus navigation app for students with mobility needs at Kwame Nkrumah University of Science and Technology (KNUST), Kumasi. It finds step-free routes, shows wheelchair ramps and lifts, and lets students report when a lift or ramp is broken. Outdoor pins sit on an OpenStreetMap of campus. Indoor guidance is landmark by landmark inside one fully mapped pilot building, the Engineering Lecture Block.
+TekPath is a crowdsourced campus navigation app for students with mobility needs at Kwame Nkrumah University of Science and Technology (KNUST), Kumasi. It finds step-free routes, shows wheelchair ramps and lifts, and lets students report when a lift or ramp is broken. Outdoor pins sit on the native map: Google Maps on Android and Apple Maps on iOS, inside Expo Go. Indoor guidance is landmark by landmark inside one fully mapped pilot building, the Engineering Lecture Block.
 
 Coordinates in the seed are **approximate demo positions** around the campus centre (6.6745 N, 1.5716 W). They are not a survey.
 
@@ -72,7 +72,7 @@ The app reads `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY` fro
 npx expo start --tunnel --port 43123
 ```
 
-`--tunnel` is the reliable path when the phone is not on the same Wi-Fi as the computer. Scan the QR code with Expo Go. The project stays inside Expo Go: camera, sensors, image picker, and a web view map. There is no custom native code and no Bluetooth.
+`--tunnel` is the reliable path when the phone is not on the same Wi-Fi as the computer. Scan the QR code with Expo Go. The project stays inside Expo Go: camera, sensors, image picker, and the maps SDK that Expo Go already ships (Google Maps on Android, Apple Maps on iOS). There is no custom native code and no Bluetooth.
 
 Auth redirect URLs, in the hosted dashboard under Authentication → URL configuration:
 
@@ -95,7 +95,7 @@ Scanning a code in the app sets that node as the exact start. The same codes can
 
 Start from a fresh `supabase db reset` so both lifts are working and the Administration Block ramp is the only broken pin.
 
-1. Open the map. Pins use a letter (R ramp, L lift, T toilet, P parking, E entrance) plus the words Working, Broken, or Unknown. The Administration Block ramp is already Broken, from a seeded report. Unity Hall’s lift is Unknown.
+1. Open the map. Pins are teal with a Lucide glyph (ramp, lift, toilet, parking, entrance) and a status badge. The Administration Block ramp is already Broken, from a seeded report. Unity Hall’s lift is Unknown.
 2. Search for `201`. Choose **Lecture Theatre 201**.
 3. Pick the start **ELB forecourt** (or scan `ELB-RAMP-G`, which also calibrates the ground floor).
 4. The route uses **Lift A** on the way to level 2. Start step-by-step guidance. Each screen is one landmark, with an “I’m here — next” button. On a phone, taking Lift A and rising about one floor (3.6 m, ~0.12 hPa per metre) auto-advances that lift step.
@@ -116,7 +116,7 @@ Map pins, floor-plan marks, and the wordmark use [Lucide](https://lucide.dev) ic
 
 ```
 Expo Router app (Expo SDK 57, Expo Go + web)
-  map (Leaflet + OSM tiles) · search · reports · QR · guidance
+  map (react-native-maps) · search · reports · QR · guidance
         |  supabase-js, anon key, RLS
         v
 Supabase
@@ -142,5 +142,5 @@ npm test
 - One pilot building is mapped indoors. Outdoor paths are short demo connections, not the real KNUST footpath network.
 - The barometer estimates floor changes only. It does not place you along a corridor. Web has no barometer.
 - Report notes and photos are public, with the author’s display name. Mobility needs are not. The photo URL is a public storage link.
-- OSM tiles and the Leaflet script load from the network (`tile.openstreetmap.org`, `unpkg.com`).
+- The phone map is `react-native-maps` 1.27 (the SDK 57 build). Android uses Google Maps, which Expo Go provides without an API key. iOS uses Apple Maps. A build outside Expo Go needs your own Google Maps key. Web shows the same pins on a flat campus field because Google Maps is not available there.
 - Seeded feature status changes by adding a newer report. `supabase db reset` restores the demo.

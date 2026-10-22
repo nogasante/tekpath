@@ -161,7 +161,7 @@ export default function GuideScreen() {
             accessibilityRole="button"
             accessibilityLabel="One floor down"
             onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) - 1)}
-            style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+            style={({ pressed }) => ({ width: 48, height: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
             <Ionicons name="chevron-down" size={22} color={colors.ink} aria-hidden />
           </Pressable>
           <AppText weight="700" style={{ flex: 1, textAlign: 'center' }}>
@@ -171,7 +171,7 @@ export default function GuideScreen() {
             accessibilityRole="button"
             accessibilityLabel="One floor up"
             onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) + 1)}
-            style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+            style={({ pressed }) => ({ width: 48, height: 48, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
             <Ionicons name="chevron-up" size={22} color={colors.ink} aria-hidden />
           </Pressable>
         </View>

@@ -86,15 +86,16 @@ export default function AccountScreen() {
                   setTextScale(scale.value);
                   void haptic('selection');
                 }}
-                style={{
+                style={({ pressed }) => ({
                   minHeight: 52,
                   justifyContent: 'center',
                   paddingHorizontal: 14,
                   borderRadius: radii.md,
                   borderWidth: active ? 2 : 1,
                   borderColor: active ? colors.primary : colors.line,
-                  backgroundColor: active ? colors.primary : colors.bgElevated,
-                }}>
+                  backgroundColor: active ? colors.primary : pressed ? colors.primaryMuted : colors.bgElevated,
+                  opacity: pressed && !active ? 0.9 : 1,
+                })}>
                 <AppText weight="700" color={active ? colors.onPrimary : colors.ink}>
                   {scale.label}
                 </AppText>
@@ -105,17 +106,17 @@ export default function AccountScreen() {
       </Card>
       <Card>
         <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
-          Where you are
+          Your start
         </AppText>
-        <AppText>{startNode ? startNode.name : 'No start point yet.'}</AppText>
+        <AppText>{startNode ? startNode.name : 'No start chosen yet.'}</AppText>
         <AppText size={typeScale.label} color={colors.muted}>
           {floor.source === 'barometer'
-            ? `Barometer floor: ${floor.label}${floor.pressure != null ? ` (${floor.pressure.toFixed(1)} hPa)` : ''}.`
+            ? `Estimated floor: ${floor.label}, from the barometer.`
             : floor.source === 'none'
-              ? `No barometer reading. Floor is ${floor.label} until you correct it on the guidance screen.`
-              : 'Outdoor start, or no floor calibrated yet.'}
+              ? `Floor is ${floor.label}. You can correct it while you walk.`
+              : 'No indoor floor yet. Scan a checkpoint to set one.'}
         </AppText>
-        <Button label="Pick where I am" variant="secondary" icon="locate" onPress={() => router.push('/pick-start')} />
+        <Button label="Choose your start" variant="secondary" icon="locate" onPress={() => router.push('/pick-start')} />
         {startNode ? (
           <Button label="Clear start point" variant="ghost" onPress={() => setStartNode(null)} />
         ) : null}

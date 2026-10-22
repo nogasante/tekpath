@@ -10,6 +10,7 @@ import { useEffect } from 'react';
 
 import { AppStateProvider } from '@/context/AppState';
 import { ThemeProvider, useTheme } from '@/context/Theme';
+import { ToastProvider } from '@/context/Toast';
 import { font } from '@/lib/theme';
 
 export { ErrorBoundary } from 'expo-router';
@@ -37,7 +38,7 @@ function RootNavigator() {
         <Stack.Screen name="route" options={{ title: 'Step-free route' }} />
         <Stack.Screen name="guide" options={{ title: 'Guidance' }} />
         <Stack.Screen name="scan" options={{ title: 'Scan a checkpoint' }} />
-        <Stack.Screen name="pick-start" options={{ title: 'Where are you?' }} />
+        <Stack.Screen name="pick-start" options={{ title: 'Choose your start' }} />
         <Stack.Screen name="qr" options={{ title: 'Print QR codes' }} />
         <Stack.Screen name="add-point" options={{ title: 'Add a point' }} />
         <Stack.Screen name="map-building" options={{ title: 'Map a building' }} />
@@ -63,7 +64,9 @@ export default function RootLayout() {
   return (
     <ThemeProvider>
       <AppStateProvider>
-        <RootNavigator />
+        <ToastProvider>
+          <RootNavigator />
+        </ToastProvider>
       </AppStateProvider>
     </ThemeProvider>
   );
