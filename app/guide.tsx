@@ -1,16 +1,20 @@
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
+import { View } from 'react-native';
 
 import { FloorPlan } from '@/components/FloorPlan';
-import { AppText, Button, Notice, Screen } from '@/components/ui';
+import { AppText, Button, Card, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
+import { useTheme } from '@/context/Theme';
+import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+import { spacing, type as typeScale } from '@/lib/theme';
 import { floorLabel } from '@/lib/types';
 
 type Room = { name: string; x: number; y: number; w: number; h: number };
 
 export default function GuideScreen() {
+  const { colors } = useTheme();
   const { route, floor, correctFloor } = useAppState();
   const [index, setIndex] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -62,18 +66,47 @@ export default function GuideScreen() {
   }
 
   const last = index >= route.steps.length - 1;
+  const progress = (index + 1) / route.steps.length;
 
   return (
     <Screen scroll>
-      <AppText size={16} color={colors.muted}>
+      <AppText size={typeScale.label} weight="700" color={colors.muted}>
         Step {index + 1} of {route.steps.length}
-        {step.floor_level != null ? ` · ${floorLabel(step.floor_level, step.floor_name)}` : ''}
       </AppText>
-      <AppText accessibilityRole="header" accessibilityLiveRegion="polite" size={32} weight="700">
-        {step.instruction}
-      </AppText>
-      {step.landmark_description ? <AppText>{step.landmark_description}</AppText> : null}
-      {step.qr_code ? <AppText size={16}>Checkpoint code {step.qr_code}</AppText> : null}
+      <View
+        accessibilityRole="progressbar"
+        accessibilityValue={{ min: 1, max: route.steps.length, now: index + 1 }}
+        style={{ height: 8, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden' }}>
+        <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: colors.primary }} />
+      </View>
+      <View
+        accessibilityLabel={step.floor_level != null ? floorLabel(step.floor_level, step.floor_name) : 'Outdoors'}
+        style={{
+          alignSelf: 'flex-start',
+          minHeight: 48,
+          paddingHorizontal: 14,
+          borderRadius: 999,
+          backgroundColor: colors.primaryMuted,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 8,
+        }}>
+        <AppText weight="700" color={colors.primary}>
+          {step.floor_level != null ? floorLabel(step.floor_level, step.floor_name) : 'Outdoors'}
+        </AppText>
+      </View>
+      <Card>
+        <AppText accessibilityRole="header" accessibilityLiveRegion="polite" size={typeScale.display} weight="700">
+          {step.instruction}
+        </AppText>
+        <AppText weight="700">{step.node_name}</AppText>
+        {step.landmark_description ? <AppText color={colors.muted}>{step.landmark_description}</AppText> : null}
+        {step.qr_code ? (
+          <AppText size={typeScale.label} color={colors.muted}>
+            Checkpoint code {step.qr_code}
+          </AppText>
+        ) : null}
+      </Card>
       {rooms.length > 0 ? <FloorPlan rooms={rooms} activeName={step.node_name} planX={step.plan_x} planY={step.plan_y} /> : null}
       <Notice tone={floor.source === 'barometer' ? 'good' : 'info'}>
         {floor.source === 'barometer'
@@ -85,15 +118,23 @@ export default function GuideScreen() {
       </Notice>
       {autoNote ? <Notice tone="good">{autoNote}</Notice> : null}
       {step.floor_level != null ? (
-        <>
-          <Button label="I'm one floor up" variant="secondary" onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) + 1)} />
-          <Button label="I'm one floor down" variant="secondary" onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) - 1)} />
-        </>
+        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+          <View style={{ flex: 1 }}>
+            <Button label="One floor up" variant="secondary" onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) + 1)} />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Button label="One floor down" variant="secondary" onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) - 1)} />
+          </View>
+        </View>
       ) : null}
-      {index > 0 ? <Button label="Previous landmark" variant="secondary" onPress={() => setIndex((value) => value - 1)} /> : null}
+      {index > 0 ? (
+        <Button label="Previous landmark" variant="secondary" onPress={() => setIndex((value) => value - 1)} />
+      ) : null}
       <Button
         label={last ? "I've arrived" : "I'm here — next"}
+        icon={last ? 'checkmark' : 'arrow-forward'}
         onPress={() => {
+          void haptic(last ? 'success' : 'light');
           if (last) router.replace('/');
           else setIndex((value) => value + 1);
         }}

@@ -1,36 +1,38 @@
 import { Ionicons } from '@expo/vector-icons';
 import { Tabs } from 'expo-router';
+import { View } from 'react-native';
 
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/context/Theme';
 
 export default function TabLayout() {
+  const { colors } = useTheme();
   return (
     <Tabs
       screenOptions={{
-        headerStyle: { backgroundColor: colors.paper },
+        headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.ink,
-        headerTitleStyle: { fontWeight: '700', fontSize: 22 },
+        headerTitleStyle: { fontWeight: '700', fontSize: 20, color: colors.ink },
         headerShadowVisible: false,
-        tabBarActiveTintColor: colors.forest,
-        tabBarInactiveTintColor: colors.ink,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.muted,
         tabBarStyle: {
-          backgroundColor: colors.paper,
-          borderTopColor: colors.ink,
-          borderTopWidth: 2,
-          minHeight: 64,
+          backgroundColor: colors.bgElevated,
+          borderTopColor: colors.line,
+          borderTopWidth: 1,
           paddingTop: 6,
-          paddingBottom: 8,
         },
-        tabBarLabelStyle: { fontSize: 13, fontWeight: '700' },
+        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+        tabBarItemStyle: { minHeight: 48 },
       }}>
       <Tabs.Screen
         name="index"
         options={{
-          title: 'TekPath',
+          headerShown: false,
+          title: 'Map',
           tabBarLabel: 'Map',
           tabBarAccessibilityLabel: 'Campus map',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="map" color={typeof color === 'string' ? color : colors.forest} size={size ?? 26} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name={focused ? 'map' : 'map-outline'} color={typeof color === 'string' ? color : colors.primary} focused={focused} />
           ),
         }}
       />
@@ -39,8 +41,8 @@ export default function TabLayout() {
         options={{
           title: 'Search',
           tabBarAccessibilityLabel: 'Search buildings and rooms',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="search" color={typeof color === 'string' ? color : colors.ink} size={size ?? 26} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name={focused ? 'search' : 'search-outline'} color={typeof color === 'string' ? color : colors.muted} focused={focused} />
           ),
         }}
       />
@@ -49,8 +51,8 @@ export default function TabLayout() {
         options={{
           title: 'Contribute',
           tabBarAccessibilityLabel: 'Add accessibility information',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="add-circle" color={typeof color === 'string' ? color : colors.ink} size={size ?? 26} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name={focused ? 'add-circle' : 'add-circle-outline'} color={typeof color === 'string' ? color : colors.muted} focused={focused} />
           ),
         }}
       />
@@ -59,11 +61,37 @@ export default function TabLayout() {
         options={{
           title: 'Account',
           tabBarAccessibilityLabel: 'Account and text size',
-          tabBarIcon: ({ color, size }) => (
-            <Ionicons name="person" color={typeof color === 'string' ? color : colors.ink} size={size ?? 26} />
+          tabBarIcon: ({ color, focused }) => (
+            <TabIcon name={focused ? 'person' : 'person-outline'} color={typeof color === 'string' ? color : colors.muted} focused={focused} />
           ),
         }}
       />
     </Tabs>
+  );
+}
+
+function TabIcon({
+  name,
+  color,
+  focused,
+}: {
+  name: keyof typeof Ionicons.glyphMap;
+  color: string;
+  focused: boolean;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View
+      style={{
+        minWidth: 48,
+        minHeight: 32,
+        borderRadius: 16,
+        alignItems: 'center',
+        justifyContent: 'center',
+        backgroundColor: focused ? colors.primaryMuted : 'transparent',
+        paddingHorizontal: 12,
+      }}>
+      <Ionicons name={name} color={color} size={22} aria-hidden />
+    </View>
   );
 }

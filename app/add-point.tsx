@@ -6,13 +6,15 @@ import { CampusMap } from '@/components/CampusMap';
 import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { supabase } from '@/lib/supabase';
-import { campus, colors } from '@/lib/theme';
+import { useTheme } from '@/context/Theme';
+import { campus, type as typeScale } from '@/lib/theme';
 import type { FeatureStatus } from '@/lib/types';
 
 const kinds = ['ramp', 'lift', 'toilet', 'parking', 'entrance'] as const;
 
 export default function AddPointScreen() {
   const { session } = useAppState();
+  const { colors } = useTheme();
   const [name, setName] = useState('');
   const [kind, setKind] = useState<(typeof kinds)[number]>('ramp');
   const [status, setStatus] = useState<FeatureStatus>('unknown');
@@ -106,7 +108,7 @@ export default function AddPointScreen() {
       <Field label="Landmark note" value={note} onChangeText={setNote} placeholder="Beside the south doors" />
       <Field label="Latitude" value={latitude} onChangeText={setLatitude} keyboardType="decimal-pad" />
       <Field label="Longitude" value={longitude} onChangeText={setLongitude} keyboardType="decimal-pad" />
-      <AppText size={15} color={colors.muted}>Use the map centre above, or type coordinates. Label them approximate unless you surveyed them.</AppText>
+      <AppText size={typeScale.label} color={colors.muted}>Use the map centre above, or type coordinates. Label them approximate unless you surveyed them.</AppText>
       <Button label={busy ? 'Saving…' : session ? 'Save point' : 'Sign in to save'} onPress={save} disabled={busy} />
       {error ? <Notice tone="bad">{error}</Notice> : null}
     </Screen>

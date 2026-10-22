@@ -3,14 +3,16 @@ import { Platform, View } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 
 import { AppText, Button, Notice, Screen } from '@/components/ui';
+import { useTheme } from '@/context/Theme';
 import { supabase, supabaseConfigError } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+import { radii, type as typeScale } from '@/lib/theme';
 
 type Row = { id: string; name: string; qr_code: string; type: string; buildings: { name: string } | { name: string }[] | null };
 
 export default function QrScreen() {
   const [rows, setRows] = useState<Row[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const { colors } = useTheme();
 
   useEffect(() => {
     if (supabaseConfigError) return;
@@ -48,10 +50,10 @@ export default function QrScreen() {
           return (
             <View
               key={row.id}
-              style={{ width: 220, padding: 12, borderWidth: 2, borderColor: colors.ink, borderRadius: 12, backgroundColor: '#fff', alignItems: 'center', gap: 8 }}>
+              style={{ width: 220, padding: 12, borderWidth: 1, borderColor: colors.line, borderRadius: radii.md, backgroundColor: '#fff', alignItems: 'center', gap: 8 }}>
               <QRCode value={row.qr_code} size={160} />
               <AppText weight="700" style={{ textAlign: 'center' }}>{row.name}</AppText>
-              <AppText size={15} style={{ textAlign: 'center' }}>{building?.name || 'Campus'}</AppText>
+              <AppText size={typeScale.label} style={{ textAlign: 'center' }}>{building?.name || 'Campus'}</AppText>
               <AppText accessibilityLabel={`QR code for ${row.name}, value ${row.qr_code}`} size={16} weight="700">
                 {row.qr_code}
               </AppText>

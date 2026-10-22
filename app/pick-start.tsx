@@ -1,19 +1,20 @@
 import * as Location from 'expo-location';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable } from 'react-native';
 
-import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
+import { AppText, Button, Field, ListRow, Notice, Screen, Skeleton } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
+import { useTheme } from '@/context/Theme';
 import { nodeSelect, toStartNode } from '@/lib/nodes';
 import { supabase } from '@/lib/supabase';
-import { colors, onCampusMetres } from '@/lib/theme';
+import { onCampusMetres, type as typeScale } from '@/lib/theme';
 import type { StartNode } from '@/lib/types';
 
 export default function PickStartScreen() {
   const params = useLocalSearchParams<{ to?: string }>();
   const toId = typeof params.to === 'string' ? params.to : undefined;
   const { setStartNode } = useAppState();
+  const { colors } = useTheme();
   const [nodes, setNodes] = useState<StartNode[]>([]);
   const [query, setQuery] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -76,26 +77,23 @@ export default function PickStartScreen() {
 
   return (
     <Screen scroll>
-      <AppText size={16} color={colors.muted}>
+      <AppText size={typeScale.body} color={colors.muted}>
         GPS is a hint outdoors. Indoors, scan the QR code at a door or lift, or pick the place from this list.
       </AppText>
       <Button label="Scan a QR checkpoint" icon="qr-code" onPress={() => router.push({ pathname: '/scan', params: { to: toId } })} />
       <Button label="Use my location if I'm on campus" variant="secondary" icon="locate" onPress={useLocation} />
       <Field label="Filter places" value={query} onChangeText={setQuery} placeholder="Forecourt, Lift A, library" />
-      {loading ? <AppText>Loading places…</AppText> : null}
+      {loading ? <Skeleton height={64} /> : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}
       {shown.map((node) => (
-        <Pressable
+        <ListRow
           key={node.id}
-          accessibilityRole="button"
+          icon="location"
+          title={node.name}
+          subtitle={[node.buildingName, node.floorName, node.qrCode].filter(Boolean).join(' · ')}
           accessibilityLabel={`I am at ${node.name}`}
           onPress={() => choose(node)}
-          style={{ minHeight: 64, padding: 12, borderWidth: 2, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.card }}>
-          <AppText weight="700">{node.name}</AppText>
-          <AppText size={15} color={colors.muted}>
-            {[node.buildingName, node.floorName, node.qrCode].filter(Boolean).join(' · ')}
-          </AppText>
-        </Pressable>
+        />
       ))}
     </Screen>
   );

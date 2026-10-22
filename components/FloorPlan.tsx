@@ -2,7 +2,8 @@ import { Circle, Rect, Svg, Text as SvgText } from 'react-native-svg';
 import { View } from 'react-native';
 
 import { AppText } from '@/components/ui';
-import { colors } from '@/lib/theme';
+import { useTheme } from '@/context/Theme';
+import { type as typeScale } from '@/lib/theme';
 
 type Room = { name: string; x: number; y: number; w: number; h: number };
 
@@ -17,10 +18,11 @@ export function FloorPlan({
   planX?: number | null;
   planY?: number | null;
 }) {
+  const { colors } = useTheme();
   return (
     <View accessibilityLabel="Simple floor diagram. The written step is the guidance.">
       <Svg viewBox="0 0 100 100" width="100%" height={220}>
-        <Rect x={1} y={1} width={98} height={98} fill="#FFFFFF" stroke={colors.ink} strokeWidth={1} />
+        <Rect x={1} y={1} width={98} height={98} rx={3} fill={colors.bgElevated} stroke={colors.line} strokeWidth={1} />
         {rooms.map((room) => {
           const active = activeName != null && room.name.toLowerCase().includes(activeName.toLowerCase().slice(0, 12));
           return (
@@ -30,7 +32,7 @@ export function FloorPlan({
               y={room.y}
               width={room.w}
               height={room.h}
-              fill={active ? '#D9F2E4' : '#F4F0E6'}
+              fill={active ? colors.primaryMuted : colors.bg}
               stroke={colors.ink}
               strokeWidth={active ? 1.6 : 0.8}
             />
@@ -42,10 +44,10 @@ export function FloorPlan({
           </SvgText>
         ))}
         {planX != null && planY != null ? (
-          <Circle cx={Number(planX)} cy={Number(planY)} r={2.4} fill={colors.clay} stroke={colors.ink} strokeWidth={0.6} />
+          <Circle cx={Number(planX)} cy={Number(planY)} r={2.4} fill={colors.primary} stroke={colors.bgElevated} strokeWidth={0.6} />
         ) : null}
       </Svg>
-      <AppText size={14} color={colors.muted}>
+      <AppText size={typeScale.caption} color={colors.muted}>
         Diagram only. Follow the written landmark, not the drawing alone.
       </AppText>
     </View>

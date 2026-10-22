@@ -5,6 +5,7 @@ import { View } from 'react-native';
 
 import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
+import { useTheme } from '@/context/Theme';
 import { nodeSelect, qrFromScan, toStartNode } from '@/lib/nodes';
 import { supabase } from '@/lib/supabase';
 
@@ -12,6 +13,7 @@ export default function ScanScreen() {
   const params = useLocalSearchParams<{ to?: string }>();
   const toId = typeof params.to === 'string' ? params.to : undefined;
   const { setStartNode } = useAppState();
+  const { colors } = useTheme();
   const [permission, requestPermission] = useCameraPermissions();
   const [manual, setManual] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -43,7 +45,7 @@ export default function ScanScreen() {
         Point the camera at a TekPath QR code on a door or lift. The code sets your exact start and, indoors, calibrates the floor for the barometer.
       </AppText>
       {permission?.granted ? (
-        <View style={{ height: 280, borderRadius: 16, overflow: 'hidden', borderWidth: 2, borderColor: '#102017' }}>
+        <View style={{ height: 280, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: colors.line }}>
           <CameraView
             style={{ flex: 1 }}
             facing="back"

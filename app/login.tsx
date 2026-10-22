@@ -2,9 +2,11 @@ import * as Linking from 'expo-linking';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useState } from 'react';
 
+import { Wordmark } from '@/components/Logo';
 import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
+import { useTheme } from '@/context/Theme';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+import { type as typeScale } from '@/lib/theme';
 
 export default function LoginScreen() {
   const params = useLocalSearchParams<{ next?: string }>();
@@ -14,6 +16,7 @@ export default function LoginScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const { colors } = useTheme();
 
   function done() {
     if (typeof params.next === 'string' && params.next.startsWith('/')) router.replace(params.next as '/');
@@ -60,7 +63,8 @@ export default function LoginScreen() {
 
   return (
     <Screen scroll>
-      <AppText size={16} color={colors.muted}>
+      <Wordmark />
+      <AppText size={typeScale.body} color={colors.muted}>
         You can browse and plan routes without an account. Reporting and adding points need a sign-in.
       </AppText>
       <Field label="Email" value={email} onChangeText={setEmail} autoCapitalize="none" autoComplete="email" keyboardType="email-address" />

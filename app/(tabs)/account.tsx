@@ -1,11 +1,15 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
-import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
+import { AppText, Button, Card, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
+import { useTheme } from '@/context/Theme';
+import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+import { radii, spacing, type as typeScale } from '@/lib/theme';
+import { WELCOME_KEY } from '@/lib/welcome';
 
 const scales = [
   { value: 1, label: 'Default text' },
@@ -14,6 +18,7 @@ const scales = [
 ];
 
 export default function AccountScreen() {
+  const { colors } = useTheme();
   const { session, textScale, setTextScale, startNode, floor, setStartNode } = useAppState();
   const [displayName, setDisplayName] = useState('');
   const [mobility, setMobility] = useState('');
@@ -52,52 +57,75 @@ export default function AccountScreen() {
     ]);
     if (profileResult.error || privateResult.error) {
       setError(profileResult.error?.message || privateResult.error?.message || 'Could not save the profile.');
-    } else setMessage('Profile saved. Mobility needs stay private to this account.');
+      void haptic('warning');
+    } else {
+      setMessage('Profile saved. Mobility needs stay private to this account.');
+      void haptic('success');
+    }
   }
 
   return (
     <Screen scroll>
-      <AppText weight="700" size={22}>Text size</AppText>
-      <AppText size={16} color={colors.muted}>This is in addition to your phone's system text size.</AppText>
-      <View style={{ gap: 8 }}>
-        {scales.map((scale) => {
-          const active = textScale === scale.value;
-          return (
-            <Pressable
-              key={scale.value}
-              accessibilityRole="button"
-              accessibilityState={{ selected: active }}
-              accessibilityLabel={scale.label}
-              onPress={() => setTextScale(scale.value)}
-              style={{
-                minHeight: 52,
-                justifyContent: 'center',
-                paddingHorizontal: 14,
-                borderRadius: 12,
-                borderWidth: 2,
-                borderColor: colors.ink,
-                backgroundColor: active ? colors.ink : colors.card,
-              }}>
-              <AppText weight="700" color={active ? '#fff' : colors.ink}>{scale.label}</AppText>
-            </Pressable>
-          );
-        })}
-      </View>
-      <AppText weight="700" size={22}>Where TekPath thinks you are</AppText>
-      <AppText>{startNode ? startNode.name : 'No start point yet.'}</AppText>
-      <AppText size={16} color={colors.muted}>
-        {floor.source === 'barometer'
-          ? `Barometer floor: ${floor.label}${floor.pressure != null ? ` (${floor.pressure.toFixed(1)} hPa)` : ''}.`
-          : floor.source === 'none'
-            ? `No barometer reading. Floor is ${floor.label} until you correct it on the guidance screen.`
-            : 'Outdoor start, or no floor calibrated yet.'}
-      </AppText>
-      <Button label="Pick where I am" variant="secondary" onPress={() => router.push('/pick-start')} />
-      {startNode ? <Button label="Clear start point" variant="secondary" onPress={() => setStartNode(null)} /> : null}
+      <Card>
+        <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+          Text size
+        </AppText>
+        <AppText size={typeScale.label} color={colors.muted}>
+          This is in addition to your phone's system text size.
+        </AppText>
+        <View accessibilityRole="radiogroup" style={{ gap: spacing.sm }}>
+          {scales.map((scale) => {
+            const active = textScale === scale.value;
+            return (
+              <Pressable
+                key={scale.value}
+                accessibilityRole="radio"
+                accessibilityState={{ selected: active }}
+                accessibilityLabel={scale.label}
+                onPress={() => {
+                  setTextScale(scale.value);
+                  void haptic('selection');
+                }}
+                style={{
+                  minHeight: 52,
+                  justifyContent: 'center',
+                  paddingHorizontal: 14,
+                  borderRadius: radii.md,
+                  borderWidth: active ? 2 : 1,
+                  borderColor: active ? colors.primary : colors.line,
+                  backgroundColor: active ? colors.primary : colors.bgElevated,
+                }}>
+                <AppText weight="700" color={active ? colors.onPrimary : colors.ink}>
+                  {scale.label}
+                </AppText>
+              </Pressable>
+            );
+          })}
+        </View>
+      </Card>
+      <Card>
+        <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+          Where you are
+        </AppText>
+        <AppText>{startNode ? startNode.name : 'No start point yet.'}</AppText>
+        <AppText size={typeScale.label} color={colors.muted}>
+          {floor.source === 'barometer'
+            ? `Barometer floor: ${floor.label}${floor.pressure != null ? ` (${floor.pressure.toFixed(1)} hPa)` : ''}.`
+            : floor.source === 'none'
+              ? `No barometer reading. Floor is ${floor.label} until you correct it on the guidance screen.`
+              : 'Outdoor start, or no floor calibrated yet.'}
+        </AppText>
+        <Button label="Pick where I am" variant="secondary" icon="locate" onPress={() => router.push('/pick-start')} />
+        {startNode ? (
+          <Button label="Clear start point" variant="ghost" onPress={() => setStartNode(null)} />
+        ) : null}
+      </Card>
       {session ? (
-        <>
-          <AppText weight="700" size={22}>Profile</AppText>
-          <AppText size={16}>{session.user.email}</AppText>
+        <Card>
+          <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+            Profile
+          </AppText>
+          <AppText size={typeScale.label}>{session.user.email}</AppText>
           <Field label="Display name" value={displayName} onChangeText={setDisplayName} />
           <Field
             label="Mobility needs"
@@ -106,10 +134,10 @@ export default function AccountScreen() {
             multiline
             placeholder="Optional. Only you can see this."
           />
-          <AppText size={16} color={colors.muted}>
+          <AppText size={typeScale.label} color={colors.muted}>
             Stored separately from your display name. Other students and signed-out visitors cannot read it. Reports still show your display name, note, and photo.
           </AppText>
-          <Button label="Save profile" onPress={save} />
+          <Button label="Save profile" haptic="light" onPress={save} />
           <Button
             label="Sign out"
             variant="secondary"
@@ -118,13 +146,21 @@ export default function AccountScreen() {
               setMessage('Signed out.');
             }}
           />
-        </>
+        </Card>
       ) : (
-        <Button label="Sign in" icon="log-in" onPress={() => router.push('/login')} />
+        <Button label="Sign in" icon="log-in" haptic="light" onPress={() => router.push('/login')} />
       )}
       {message ? <Notice tone="good">{message}</Notice> : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}
-      <Button label="Print QR checkpoints" variant="secondary" onPress={() => router.push('/qr')} />
+      <Button label="Print QR checkpoints" variant="secondary" icon="qr-code" onPress={() => router.push('/qr')} />
+      <Button
+        label="See the welcome again"
+        variant="ghost"
+        onPress={async () => {
+          await AsyncStorage.removeItem(WELCOME_KEY);
+          router.push('/welcome');
+        }}
+      />
     </Screen>
   );
 }

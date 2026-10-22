@@ -1,14 +1,18 @@
+import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { Image, View } from 'react-native';
+import { Image, Pressable, View } from 'react-native';
 
-import { AppText, Button, Field, KindBadge, Notice, Screen, StatusBadge } from '@/components/ui';
+import { AppText, Button, Card, Field, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
+import { useTheme } from '@/context/Theme';
+import { haptic } from '@/lib/haptics';
 import { uploadReportPhoto } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+import { radii, spacing, statusTone, type as typeScale } from '@/lib/theme';
 import type { AccessFeature, FeatureStatus } from '@/lib/types';
+import { statusLabel } from '@/lib/types';
 
 type ReportRow = {
   id: string;
@@ -19,8 +23,15 @@ type ReportRow = {
   display_name: string | null;
 };
 
+const choices: { id: FeatureStatus; hint: string; icon: keyof typeof Ionicons.glyphMap }[] = [
+  { id: 'working', hint: 'I could use it just now', icon: 'checkmark-circle' },
+  { id: 'broken', hint: 'Blocked, stuck, or unsafe', icon: 'warning' },
+  { id: 'unknown', hint: 'I could not tell', icon: 'help-circle' },
+];
+
 export default function FeatureScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { colors } = useTheme();
   const { session, startNode } = useAppState();
   const [feature, setFeature] = useState<AccessFeature | null>(null);
   const [reports, setReports] = useState<ReportRow[]>([]);
@@ -30,6 +41,7 @@ export default function FeatureScreen() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -46,6 +58,7 @@ export default function FeatureScreen() {
     setFeature((featureResult.data as AccessFeature | null) ?? null);
     if (reportResult.error) setError(reportResult.error.message);
     else setReports((reportResult.data ?? []) as ReportRow[]);
+    setLoading(false);
   }, [id]);
 
   useEffect(() => {
@@ -72,6 +85,7 @@ export default function FeatureScreen() {
       : await ImagePicker.launchImageLibraryAsync({ mediaTypes: ['images'], quality: 0.5 });
     if (!result.canceled && result.assets[0]) {
       setPhoto({ uri: result.assets[0].uri, mime: result.assets[0].mimeType || 'image/jpeg' });
+      void haptic('selection');
     }
   }
 
@@ -100,10 +114,12 @@ export default function FeatureScreen() {
       if (insertError) throw insertError;
       setNote('');
       setPhoto(null);
-      setMessage('Report saved. The status updates for everyone, and routing uses it immediately.');
+      setMessage('Report saved. The map and the router use this status now.');
+      void haptic('success');
       await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Could not save the report.');
+      void haptic('warning');
     } finally {
       setBusy(false);
     }
@@ -112,65 +128,126 @@ export default function FeatureScreen() {
   if (!feature) {
     return (
       <Screen scroll>
-        <AppText>{error || 'Loading this point…'}</AppText>
+        {loading ? <Skeleton height={36} width="80%" /> : null}
+        <AppText>{error || (loading ? 'Loading this point…' : 'This point is not on the map.')}</AppText>
       </Screen>
     );
   }
 
   return (
     <Screen scroll>
-      <AppText size={28} weight="700">{feature.name}</AppText>
-      <View style={{ flexDirection: 'row', gap: 10, flexWrap: 'wrap' }}>
+      <AppText accessibilityRole="header" size={typeScale.title} weight="700">
+        {feature.name}
+      </AppText>
+      <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap', alignItems: 'center' }}>
         <KindBadge kind={feature.kind} />
         <StatusBadge status={feature.status} />
       </View>
-      <AppText size={16} color={colors.muted}>
-        Approximate pin {Number(feature.latitude).toFixed(5)}, {Number(feature.longitude).toFixed(5)}. Notes are visible to anyone using TekPath.
+      <AppText size={typeScale.label} color={colors.muted}>
+        Approximate pin {Number(feature.latitude).toFixed(5)}, {Number(feature.longitude).toFixed(5)}. Notes and photos are visible to anyone using TekPath.
       </AppText>
       {feature.node_id ? (
         <Button
           label={startNode ? 'Route here' : 'Choose a start, then route here'}
+          icon="navigate"
+          haptic="light"
           onPress={() => {
             if (startNode) router.push({ pathname: '/route', params: { to: feature.node_id!, from: startNode.id } });
             else router.push({ pathname: '/pick-start', params: { to: feature.node_id! } });
           }}
         />
       ) : null}
-      <AppText weight="700" size={22}>Report the current status</AppText>
-      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        {(['working', 'broken', 'unknown'] as FeatureStatus[]).map((value) => (
-          <View key={value} style={{ flexGrow: 1 }}>
-            <Button
-              label={value === 'working' ? 'Working' : value === 'broken' ? 'Broken' : 'Unknown'}
-              variant={status === value ? (value === 'broken' ? 'danger' : 'primary') : 'secondary'}
-              onPress={() => setStatus(value)}
-            />
-          </View>
-        ))}
+      {message ? (
+        <Card>
+          <Notice tone="good">{message}</Notice>
+        </Card>
+      ) : null}
+      <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+        What do you see?
+      </AppText>
+      <View style={{ gap: spacing.sm }}>
+        {choices.map((choice) => {
+          const tone = statusTone(colors, choice.id);
+          const selected = status === choice.id;
+          return (
+            <Pressable
+              key={choice.id}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              accessibilityLabel={`${statusLabel(choice.id)}. ${choice.hint}`}
+              onPress={() => {
+                setStatus(choice.id);
+                void haptic('selection');
+              }}
+              style={{
+                minHeight: 72,
+                borderRadius: radii.md,
+                borderWidth: selected ? 2 : 1,
+                borderColor: selected ? tone.fg : colors.line,
+                backgroundColor: selected ? tone.bg : colors.bgElevated,
+                padding: spacing.md,
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: spacing.md,
+              }}>
+              <Ionicons name={choice.icon} size={28} color={tone.fg} aria-hidden />
+              <View style={{ flex: 1 }}>
+                <AppText weight="700" color={tone.fg}>
+                  {statusLabel(choice.id)}
+                </AppText>
+                <AppText size={typeScale.label} color={colors.muted}>
+                  {choice.hint}
+                </AppText>
+              </View>
+            </Pressable>
+          );
+        })}
       </View>
       <Field label="Note" value={note} onChangeText={setNote} multiline placeholder="What did you see?" />
-      <Button label={photo ? 'Photo attached' : 'Choose a photo'} variant="secondary" icon="image" onPress={() => pick(false)} />
-      <Button label="Take a photo" variant="secondary" icon="camera" onPress={() => pick(true)} />
-      {photo ? <Image source={{ uri: photo.uri }} style={{ width: '100%', height: 180, borderRadius: 12 }} accessibilityLabel="Selected report photo" /> : null}
-      <Button label={busy ? 'Sending…' : session ? 'Submit report' : 'Sign in to report'} onPress={submit} disabled={busy} />
-      {message ? <Notice tone="good">{message}</Notice> : null}
+      <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+        <View style={{ flex: 1 }}>
+          <Button label={photo ? 'Photo attached' : 'Choose a photo'} variant="secondary" icon="image" onPress={() => pick(false)} />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Button label="Take a photo" variant="secondary" icon="camera" onPress={() => pick(true)} />
+        </View>
+      </View>
+      {photo ? (
+        <Image
+          source={{ uri: photo.uri }}
+          style={{ width: '100%', height: 180, borderRadius: radii.md }}
+          accessibilityLabel="Selected report photo"
+        />
+      ) : null}
+      <Button
+        label={busy ? 'Sending…' : session ? 'Submit report' : 'Sign in to report'}
+        haptic="light"
+        onPress={submit}
+        disabled={busy}
+      />
       {error ? <Notice tone="bad">{error}</Notice> : null}
-      <AppText weight="700" size={22}>Recent reports</AppText>
-      {reports.length === 0 ? <AppText>No reports yet.</AppText> : null}
-      {reports.map((report) => {
-        return (
-          <View key={report.id} style={{ gap: 6, padding: 12, borderWidth: 2, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.card }}>
-            <StatusBadge status={report.status} />
-            <AppText>{report.note || 'No note.'}</AppText>
-            <AppText size={15} color={colors.muted}>
-              {report.display_name || 'Student'} · {new Date(report.created_at).toLocaleString()}
-            </AppText>
-            {report.photo_url ? (
-              <Image source={{ uri: report.photo_url }} style={{ width: '100%', height: 180, borderRadius: 12 }} accessibilityLabel="Report photo" />
-            ) : null}
-          </View>
-        );
-      })}
+      <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+        Recent reports
+      </AppText>
+      {reports.length === 0 ? (
+        <AppText color={colors.muted}>No reports yet. Yours will be the first.</AppText>
+      ) : null}
+      {reports.map((report) => (
+        <Card key={report.id}>
+          <StatusBadge status={report.status} />
+          <AppText>{report.note || 'No note.'}</AppText>
+          <AppText size={typeScale.label} color={colors.muted}>
+            {report.display_name || 'Student'} · {new Date(report.created_at).toLocaleString()}
+          </AppText>
+          {report.photo_url ? (
+            <Image
+              source={{ uri: report.photo_url }}
+              style={{ width: '100%', height: 180, borderRadius: radii.md }}
+              accessibilityLabel="Report photo"
+            />
+          ) : null}
+        </Card>
+      ))}
     </Screen>
   );
 }

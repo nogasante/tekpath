@@ -1,12 +1,13 @@
 import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, View } from 'react-native';
+import { View } from 'react-native';
 
-import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
+import { AppText, EmptyState, Field, ListRow, Notice, Screen, Skeleton } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
+import { useTheme } from '@/context/Theme';
 import { nodeSelect, toStartNode } from '@/lib/nodes';
 import { supabase, supabaseConfigError } from '@/lib/supabase';
-import { colors } from '@/lib/theme';
+import { type as typeScale } from '@/lib/theme';
 
 type BuildingHit = { id: string; name: string; code: string; description: string | null };
 type RoomHit = {
@@ -23,6 +24,7 @@ function clean(value: string) {
 }
 
 export default function SearchScreen() {
+  const { colors } = useTheme();
   const { startNode } = useAppState();
   const [query, setQuery] = useState('');
   const [buildings, setBuildings] = useState<BuildingHit[]>([]);
@@ -82,38 +84,65 @@ export default function SearchScreen() {
   return (
     <Screen scroll>
       {supabaseConfigError ? <Notice tone="bad">{supabaseConfigError}</Notice> : null}
-      <AppText size={16} color={colors.muted}>
+      <AppText size={typeScale.body} color={colors.muted}>
         Search buildings and rooms, then get a step-free route from {startNode ? startNode.name : 'a start you choose'}.
       </AppText>
-      <Field label="Search" value={query} onChangeText={setQuery} autoCapitalize="none" autoCorrect={false} placeholder="Try 201, library, or ELB" />
-      {loading ? <AppText>Searching…</AppText> : null}
+      <Field
+        label="Search"
+        value={query}
+        onChangeText={setQuery}
+        autoCapitalize="none"
+        autoCorrect={false}
+        placeholder="Try 201, library, or ELB"
+        accessibilityRole="search"
+      />
+      {loading ? (
+        <View style={{ gap: 8 }}>
+          <Skeleton height={64} />
+          <Skeleton height={64} />
+        </View>
+      ) : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}
       {!loading && clean(query).length > 0 && buildings.length === 0 && rooms.length === 0 ? (
-        <AppText>Nothing matched. The pilot rooms are Lecture Theatre 001, 101, 102, and 201.</AppText>
+        <EmptyState
+          icon="search"
+          title="Nothing matched"
+          body="The pilot rooms are Lecture Theatre 001, 101, 102, and 201."
+        />
       ) : null}
-      {buildings.length > 0 ? <AppText weight="700">Buildings</AppText> : null}
+      {buildings.length > 0 ? (
+        <AppText weight="700" accessibilityRole="header">
+          Buildings
+        </AppText>
+      ) : null}
       {buildings.map((building) => (
-        <View key={building.id} style={{ gap: 8, padding: 12, borderWidth: 2, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.card }}>
-          <AppText weight="700">{building.name}</AppText>
-          <AppText size={15} color={colors.muted}>{building.code}. {building.description}</AppText>
-          <Button label={`Route to ${building.code}`} variant="secondary" onPress={() => routeToBuilding(building.id)} />
-        </View>
+        <ListRow
+          key={building.id}
+          icon="business"
+          title={building.name}
+          subtitle={`${building.code}. ${building.description ?? ''}`}
+          accessibilityLabel={`Route to ${building.name}`}
+          onPress={() => routeToBuilding(building.id)}
+        />
       ))}
-      {rooms.length > 0 ? <AppText weight="700">Places</AppText> : null}
+      {rooms.length > 0 ? (
+        <AppText weight="700" accessibilityRole="header">
+          Places
+        </AppText>
+      ) : null}
       {rooms.map((room) => {
         const building = Array.isArray(room.buildings) ? room.buildings[0] : room.buildings;
         const floor = Array.isArray(room.floors) ? room.floors[0] : room.floors;
         const where = [building?.name, floor?.name].filter(Boolean).join(' · ');
         return (
-          <Pressable
+          <ListRow
             key={room.id}
-            accessibilityRole="button"
+            icon="location"
+            title={room.name}
+            subtitle={`${where || room.type}${room.qr_code ? ` · ${room.qr_code}` : ''}`}
             accessibilityLabel={`Route to ${room.name}`}
             onPress={() => go(room.id)}
-            style={{ minHeight: 64, padding: 12, borderWidth: 2, borderColor: colors.line, borderRadius: 14, backgroundColor: colors.card }}>
-            <AppText weight="700">{room.name}</AppText>
-            <AppText size={15} color={colors.muted}>{where || room.type}{room.qr_code ? ` · ${room.qr_code}` : ''}</AppText>
-          </Pressable>
+          />
         );
       })}
     </Screen>
