@@ -1,3 +1,8 @@
+import { PlusJakartaSans_400Regular } from '@expo-google-fonts/plus-jakarta-sans/400Regular';
+import { PlusJakartaSans_500Medium } from '@expo-google-fonts/plus-jakarta-sans/500Medium';
+import { PlusJakartaSans_600SemiBold } from '@expo-google-fonts/plus-jakarta-sans/600SemiBold';
+import { PlusJakartaSans_700Bold } from '@expo-google-fonts/plus-jakarta-sans/700Bold';
+import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -5,6 +10,7 @@ import { useEffect } from 'react';
 
 import { AppStateProvider } from '@/context/AppState';
 import { ThemeProvider, useTheme } from '@/context/Theme';
+import { font } from '@/lib/theme';
 
 export { ErrorBoundary } from 'expo-router';
 
@@ -17,10 +23,10 @@ function RootNavigator() {
       <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          animation: reduceMotion ? 'none' : 'default',
+          animation: reduceMotion ? 'none' : 'fade_from_bottom',
           headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.ink,
-          headerTitleStyle: { fontWeight: '700', fontSize: 18, color: colors.ink },
+          headerTitleStyle: { fontFamily: font.semibold, fontSize: 17, color: colors.ink },
           headerShadowVisible: false,
           contentStyle: { backgroundColor: colors.bg },
         }}>
@@ -41,9 +47,18 @@ function RootNavigator() {
 }
 
 export default function RootLayout() {
+  const [ready] = useFonts({
+    PlusJakartaSans_400Regular,
+    PlusJakartaSans_500Medium,
+    PlusJakartaSans_600SemiBold,
+    PlusJakartaSans_700Bold,
+  });
+
   useEffect(() => {
-    SplashScreen.hideAsync();
-  }, []);
+    if (ready) SplashScreen.hideAsync();
+  }, [ready]);
+
+  if (!ready) return null;
 
   return (
     <ThemeProvider>

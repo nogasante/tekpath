@@ -3,6 +3,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
+import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
 import { AppText, Button, Card, Field, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
@@ -64,7 +65,7 @@ export default function FeatureScreen() {
   useEffect(() => {
     load();
     const channel = supabase
-      .channel(`feature-${id}`)
+      .channel(`feature-${id}-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'features', filter: `id=eq.${id}` }, () => load())
       .subscribe();
     return () => {
@@ -157,11 +158,7 @@ export default function FeatureScreen() {
           }}
         />
       ) : null}
-      {message ? (
-        <Card>
-          <Notice tone="good">{message}</Notice>
-        </Card>
-      ) : null}
+      {message ? <ReportSaved message={message} /> : null}
       <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
         What do you see?
       </AppText>
@@ -179,7 +176,7 @@ export default function FeatureScreen() {
                 setStatus(choice.id);
                 void haptic('selection');
               }}
-              style={{
+              style={({ pressed }) => ({
                 minHeight: 72,
                 borderRadius: radii.md,
                 borderWidth: selected ? 2 : 1,
@@ -189,7 +186,8 @@ export default function FeatureScreen() {
                 flexDirection: 'row',
                 alignItems: 'center',
                 gap: spacing.md,
-              }}>
+                transform: [{ scale: pressed ? 0.98 : 1 }],
+              })}>
               <Ionicons name={choice.icon} size={28} color={tone.fg} aria-hidden />
               <View style={{ flex: 1 }}>
                 <AppText weight="700" color={tone.fg}>
@@ -249,5 +247,37 @@ export default function FeatureScreen() {
         </Card>
       ))}
     </Screen>
+  );
+}
+
+function ReportSaved({ message }: { message: string }) {
+  const { colors, reduceMotion } = useTheme();
+  const scale = useSharedValue(reduceMotion ? 1 : 0.7);
+  useEffect(() => {
+    if (!reduceMotion) scale.value = withTiming(1, { duration: 320 });
+  }, [reduceMotion, scale]);
+  const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+  return (
+    <Card>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
+        <Animated.View
+          style={[
+            {
+              width: 48,
+              height: 48,
+              borderRadius: 24,
+              backgroundColor: colors.workingBg,
+              alignItems: 'center',
+              justifyContent: 'center',
+            },
+            animated,
+          ]}>
+          <Ionicons name="checkmark" size={26} color={colors.workingFg} aria-hidden />
+        </Animated.View>
+        <View style={{ flex: 1 }}>
+          <Notice tone="good">{message}</Notice>
+        </View>
+      </View>
+    </Card>
   );
 }

@@ -16,10 +16,11 @@ import {
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { Frosted } from '@/components/Glass';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { haptic, type HapticKind } from '@/lib/haptics';
-import { elevation, radii, spacing, statusTone, type as typeScale } from '@/lib/theme';
+import { elevation, font, fontFamily, radii, spacing, statusTone, type as typeScale } from '@/lib/theme';
 import { kindLabel, statusLabel } from '@/lib/types';
 
 type IonName = keyof typeof Ionicons.glyphMap;
@@ -38,7 +39,7 @@ export function AppText({
     <Text
       allowFontScaling
       maxFontSizeMultiplier={2}
-      style={[{ fontSize, color: color ?? colors.ink, fontWeight: weight, lineHeight: fontSize * 1.35 }, style]}
+      style={[{ fontSize, color: color ?? colors.ink, fontFamily: fontFamily(weight), lineHeight: fontSize * 1.4 }, style]}
       {...props}
     />
   );
@@ -127,7 +128,8 @@ export function Button({
           gap: spacing.sm,
           backgroundColor: palette.bg,
           borderColor: palette.border,
-          opacity: disabled ? 0.45 : pressed ? 0.88 : 1,
+          opacity: disabled ? 0.45 : 1,
+          transform: [{ scale: pressed && !disabled ? 0.98 : 1 }],
         },
         variant !== 'ghost' && variant !== 'secondary' ? elevation(colors, 1) : null,
         style,
@@ -162,22 +164,10 @@ export function IconButton({
         void haptic('light');
         onPress();
       }}
-      style={({ pressed }) => [
-        {
-          width: 48,
-          height: 48,
-          borderRadius: radii.md,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: colors.bgElevated,
-          borderWidth: 1,
-          borderColor: colors.line,
-          opacity: pressed ? 0.85 : 1,
-        },
-        elevation(colors, 2),
-        style,
-      ]}>
-      <Ionicons name={icon} size={22} color={colors.ink} aria-hidden />
+      style={({ pressed }) => [{ opacity: pressed ? 0.82 : 1, transform: [{ scale: pressed ? 0.96 : 1 }] }, style]}>
+      <Frosted radius={24} style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+        <Ionicons name={icon} size={22} color={colors.ink} aria-hidden />
+      </Frosted>
     </Pressable>
   );
 }
@@ -204,7 +194,8 @@ export function Field(props: TextInputProps & { label: string }) {
             paddingVertical: 12,
             backgroundColor: colors.bgElevated,
             color: colors.ink,
-            fontSize: 17 * textScale,
+            fontFamily: font.regular,
+            fontSize: 16 * textScale,
             textAlignVertical: rest.multiline ? 'top' : 'center',
           },
           style,
@@ -334,20 +325,28 @@ export function Chip({
         void haptic('selection');
         onPress();
       }}
-      style={({ pressed }) => ({
-        minHeight: 48,
-        paddingHorizontal: 16,
-        borderRadius: radii.pill,
-        alignItems: 'center',
-        justifyContent: 'center',
-        backgroundColor: selected ? colors.primary : colors.bgElevated,
-        borderWidth: 1,
-        borderColor: selected ? colors.primary : colors.line,
-        opacity: pressed ? 0.88 : 1,
-      })}>
-      <AppText size={typeScale.label} weight="700" color={selected ? colors.onPrimary : colors.ink}>
-        {label}
-      </AppText>
+      style={({ pressed }) => ({ opacity: pressed ? 0.86 : 1, transform: [{ scale: pressed ? 0.98 : 1 }] })}>
+      {selected ? (
+        <View
+          style={{
+            minHeight: 48,
+            paddingHorizontal: 16,
+            borderRadius: radii.pill,
+            alignItems: 'center',
+            justifyContent: 'center',
+            backgroundColor: colors.primary,
+          }}>
+          <AppText size={typeScale.label} weight="700" color={colors.onPrimary}>
+            {label}
+          </AppText>
+        </View>
+      ) : (
+        <Frosted style={{ minHeight: 48, paddingHorizontal: 16, alignItems: 'center', justifyContent: 'center' }}>
+          <AppText size={typeScale.label} weight="600" color={colors.ink}>
+            {label}
+          </AppText>
+        </Frosted>
+      )}
     </Pressable>
   );
 }

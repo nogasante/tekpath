@@ -1,11 +1,15 @@
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { View } from 'react-native';
+import Svg, { Circle, Path } from 'react-native-svg';
 
-import { AppText, Button, Card, EmptyState, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
+import { BlockedRouteArt, KenteBand } from '@/components/Illustrations';
+import { AppText, Button, Card, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
+import { walkingMinutes } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { spacing, type as typeScale } from '@/lib/theme';
@@ -71,13 +75,12 @@ export default function RouteScreen() {
       {error ? <Notice tone="bad">{error}</Notice> : null}
       {result && !result.ok ? (
         <View style={{ gap: spacing.md }}>
-          <EmptyState
-            icon="heart"
-            title="No step-free way right now"
-            body={result.message || 'TekPath will not send you via stairs. Every step-free path uses a lift or ramp that is reported broken.'}
-          />
+          <BlockedRouteArt />
+          <AppText accessibilityRole="header" size={typeScale.title} weight="700">
+            No step-free way right now
+          </AppText>
           <AppText color={colors.muted}>
-            You can try another start, pick a different place, or report a lift that is actually working so the route can open.
+            {result.message || 'TekPath will not send you via stairs. Every step-free path uses a lift or ramp that is reported broken.'} You can try another start, pick a different place, or report a lift that is actually working.
           </AppText>
           {result.blockers.map((blocker) => (
             <Card key={blocker.id}>
@@ -95,30 +98,41 @@ export default function RouteScreen() {
       ) : null}
       {result?.ok ? (
         <View style={{ gap: spacing.md }}>
-          <AppText accessibilityRole="header" size={typeScale.title} weight="700">
-            {destination?.node_name ?? 'Step-free route'}
-          </AppText>
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
-            <Stat label="Distance" value={result.distance_m != null ? `${Math.round(Number(result.distance_m))} m` : '—'} />
-            <Stat label="Steps" value={String(result.steps.length)} />
-            <Stat label="Floor changes" value={String(floorChanges(result.steps))} />
-          </View>
-          <View
-            accessibilityLabel="Step-free route"
-            style={{
-              alignSelf: 'flex-start',
-              flexDirection: 'row',
-              alignItems: 'center',
-              gap: 6,
-              minHeight: 36,
-              paddingHorizontal: 12,
-              borderRadius: 999,
-              backgroundColor: colors.workingBg,
-            }}>
-            <Ionicons name="walk" size={18} color={colors.workingFg} aria-hidden />
-            <AppText weight="700" color={colors.workingFg}>
-              Step-free
+          <LinearGradient
+            colors={['#0F6E56', '#083E32']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={{ borderRadius: 28, padding: spacing.lg, gap: spacing.md, overflow: 'hidden' }}>
+            <KenteBand />
+            <AppText accessibilityRole="header" size={typeScale.title} weight="700" color="#FFFFFF">
+              {destination?.node_name ?? 'Step-free route'}
             </AppText>
+            <View style={{ flexDirection: 'row', gap: spacing.lg }}>
+              <HeroStat label="Time" value={result.distance_m != null ? `${walkingMinutes(Number(result.distance_m))} min` : '—'} />
+              <HeroStat label="Distance" value={result.distance_m != null ? `${Math.round(Number(result.distance_m))} m` : '—'} />
+            </View>
+            <View
+              accessibilityLabel="Step-free route"
+              style={{
+                alignSelf: 'flex-start',
+                flexDirection: 'row',
+                alignItems: 'center',
+                gap: 6,
+                minHeight: 36,
+                paddingHorizontal: 12,
+                borderRadius: 999,
+                backgroundColor: 'rgba(255,252,248,0.16)',
+              }}>
+              <Ionicons name="walk" size={18} color="#FFFFFF" aria-hidden />
+              <AppText weight="700" color="#FFFFFF">
+                Step-free
+              </AppText>
+            </View>
+            <RoutePreview steps={result.steps} />
+          </LinearGradient>
+          <View style={{ flexDirection: 'row', gap: spacing.sm }}>
+            <Stat label="Landmarks" value={String(result.steps.length)} />
+            <Stat label="Floor changes" value={String(floorChanges(result.steps))} />
           </View>
           <AppText size={typeScale.label} color={colors.muted}>
             Stairs stay off this route. Broken lifts and ramps are left out.
@@ -159,6 +173,40 @@ export default function RouteScreen() {
         <Button label="Pick where you are" onPress={() => router.push({ pathname: '/pick-start', params: { to: toId } })} />
       ) : null}
     </Screen>
+  );
+}
+
+function HeroStat({ label, value }: { label: string; value: string }) {
+  return (
+    <View accessibilityLabel={`${label} ${value}`} style={{ gap: 2 }}>
+      <AppText size={typeScale.caption} weight="600" color="rgba(255,252,248,0.78)">
+        {label}
+      </AppText>
+      <AppText size={typeScale.headline} weight="700" color="#FFFFFF">
+        {value}
+      </AppText>
+    </View>
+  );
+}
+
+function RoutePreview({ steps }: { steps: RouteStep[] }) {
+  const width = 240;
+  const height = 56;
+  const points = steps.map((step, index) => {
+    const x = 16 + (index * (width - 32)) / Math.max(1, steps.length - 1);
+    const y = step.floor_level == null ? 40 : 16 + (2 - Math.min(2, step.floor_level)) * 10;
+    return { x, y, change: index > 0 && step.floor_level !== steps[index - 1].floor_level };
+  });
+  const d = points.map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`).join(' ');
+  return (
+    <View accessibilityLabel="Preview of the route, with marks where the floor changes" style={{ backgroundColor: 'rgba(255,252,248,0.1)', borderRadius: 16, paddingVertical: 6 }}>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`}>
+        <Path d={d} stroke="#FFFFFF" strokeWidth={2.4} fill="none" strokeLinecap="round" strokeLinejoin="round" />
+        {points.map((point, index) => (
+          <Circle key={index} cx={point.x} cy={point.y} r={point.change ? 4.5 : 3} fill={point.change ? '#E8A06A' : '#FFFFFF'} />
+        ))}
+      </Svg>
+    </View>
   );
 }
 

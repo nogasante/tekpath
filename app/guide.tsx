@@ -1,6 +1,7 @@
+import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
-import { View } from 'react-native';
+import { Pressable, ScrollView, View } from 'react-native';
 
 import { FloorPlan } from '@/components/FloorPlan';
 import { AppText, Button, Card, Notice, Screen } from '@/components/ui';
@@ -9,7 +10,7 @@ import { useTheme } from '@/context/Theme';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { spacing, type as typeScale } from '@/lib/theme';
-import { floorLabel } from '@/lib/types';
+import { floorLabel, type RouteStep } from '@/lib/types';
 
 type Room = { name: string; x: number; y: number; w: number; h: number };
 
@@ -66,79 +67,180 @@ export default function GuideScreen() {
   }
 
   const last = index >= route.steps.length - 1;
-  const progress = (index + 1) / route.steps.length;
+
+  const floorRoute = route.steps
+    .filter((item) => item.floor_id === step.floor_id && item.plan_x != null && item.plan_y != null)
+    .map((item) => ({ x: Number(item.plan_x), y: Number(item.plan_y) }));
+  const floorName = step.floor_level != null ? floorLabel(step.floor_level, step.floor_name) : 'Outdoors';
 
   return (
-    <Screen scroll>
-      <AppText size={typeScale.label} weight="700" color={colors.muted}>
+    <Screen padded={false}>
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.lg }}
+        keyboardShouldPersistTaps="handled">
+      <AppText size={typeScale.label} weight="600" color={colors.muted}>
         Step {index + 1} of {route.steps.length}
       </AppText>
-      <View
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
         accessibilityRole="progressbar"
         accessibilityValue={{ min: 1, max: route.steps.length, now: index + 1 }}
-        style={{ height: 8, borderRadius: 4, backgroundColor: colors.line, overflow: 'hidden' }}>
-        <View style={{ width: `${progress * 100}%`, height: '100%', backgroundColor: colors.primary }} />
-      </View>
-      <View
-        accessibilityLabel={step.floor_level != null ? floorLabel(step.floor_level, step.floor_name) : 'Outdoors'}
-        style={{
-          alignSelf: 'flex-start',
-          minHeight: 48,
-          paddingHorizontal: 14,
-          borderRadius: 999,
-          backgroundColor: colors.primaryMuted,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 8,
-        }}>
-        <AppText weight="700" color={colors.primary}>
-          {step.floor_level != null ? floorLabel(step.floor_level, step.floor_name) : 'Outdoors'}
-        </AppText>
-      </View>
+        contentContainerStyle={{ alignItems: 'center', paddingVertical: 4 }}>
+        {route.steps.map((item, itemIndex) => (
+          <StepDot
+            key={`${item.order}-${item.node_id}`}
+            step={item}
+            index={itemIndex}
+            current={itemIndex === index}
+            done={itemIndex < index}
+            floorChange={itemIndex > 0 && item.floor_level !== route.steps[itemIndex - 1].floor_level}
+            onPress={() => setIndex(itemIndex)}
+          />
+        ))}
+      </ScrollView>
       <Card>
-        <AppText accessibilityRole="header" accessibilityLiveRegion="polite" size={typeScale.display} weight="700">
-          {step.instruction}
-        </AppText>
-        <AppText weight="700">{step.node_name}</AppText>
-        {step.landmark_description ? <AppText color={colors.muted}>{step.landmark_description}</AppText> : null}
-        {step.qr_code ? (
-          <AppText size={typeScale.label} color={colors.muted}>
-            Checkpoint code {step.qr_code}
-          </AppText>
-        ) : null}
+        <View style={{ flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start' }}>
+          <View
+            style={{
+              width: 48,
+              height: 48,
+              borderRadius: 16,
+              backgroundColor: colors.primaryMuted,
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+            <Ionicons name={actionIcon(step.edge_type)} size={24} color={colors.primary} aria-hidden />
+          </View>
+          <View style={{ flex: 1, gap: 4 }}>
+            <AppText size={typeScale.caption} weight="700" color={colors.accent}>
+              {floorName}
+            </AppText>
+            <AppText accessibilityRole="header" accessibilityLiveRegion="polite" size={typeScale.headline} weight="600">
+              {step.instruction}
+            </AppText>
+            <AppText weight="600">{step.node_name}</AppText>
+            {step.landmark_description ? (
+              <AppText size={typeScale.label} color={colors.muted}>
+                {step.landmark_description}
+              </AppText>
+            ) : null}
+            {step.qr_code ? (
+              <AppText size={typeScale.caption} color={colors.muted}>
+                Checkpoint {step.qr_code}
+              </AppText>
+            ) : null}
+          </View>
+        </View>
       </Card>
-      {rooms.length > 0 ? <FloorPlan rooms={rooms} activeName={step.node_name} planX={step.plan_x} planY={step.plan_y} /> : null}
+      {rooms.length > 0 ? (
+        <FloorPlan rooms={rooms} activeName={step.node_name} planX={step.plan_x} planY={step.plan_y} route={floorRoute} />
+      ) : null}
       <Notice tone={floor.source === 'barometer' ? 'good' : 'info'}>
         {floor.source === 'barometer'
           ? `Barometer floor: ${floor.label}. TekPath advances a lift step when this matches the next floor.`
           : floor.source === 'none'
-            ? `No barometer on this device. Floor is ${floor.label}. Change it if that is wrong, then tap I'm here.`
+            ? `No barometer on this device. Floor is ${floor.label}. Use the switcher if that is wrong, then tap I'm here.`
             : `This start is ${floor.label}.`}
         {floor.pressure != null ? ` Pressure ${floor.pressure.toFixed(1)} hPa.` : ''}
       </Notice>
       {autoNote ? <Notice tone="good">{autoNote}</Notice> : null}
       {step.floor_level != null ? (
-        <View style={{ flexDirection: 'row', gap: spacing.sm }}>
-          <View style={{ flex: 1 }}>
-            <Button label="One floor up" variant="secondary" onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) + 1)} />
-          </View>
-          <View style={{ flex: 1 }}>
-            <Button label="One floor down" variant="secondary" onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) - 1)} />
-          </View>
+        <View
+          style={{
+            minHeight: 48,
+            borderRadius: 999,
+            borderWidth: 1,
+            borderColor: colors.line,
+            backgroundColor: colors.bgElevated,
+            flexDirection: 'row',
+            alignItems: 'center',
+          }}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="One floor down"
+            onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) - 1)}
+            style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="chevron-down" size={22} color={colors.ink} aria-hidden />
+          </Pressable>
+          <AppText weight="700" style={{ flex: 1, textAlign: 'center' }}>
+            {floor.label}
+          </AppText>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="One floor up"
+            onPress={() => correctFloor((floor.level ?? step.floor_level ?? 0) + 1)}
+            style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+            <Ionicons name="chevron-up" size={22} color={colors.ink} aria-hidden />
+          </Pressable>
         </View>
       ) : null}
-      {index > 0 ? (
-        <Button label="Previous landmark" variant="secondary" onPress={() => setIndex((value) => value - 1)} />
-      ) : null}
-      <Button
-        label={last ? "I've arrived" : "I'm here — next"}
-        icon={last ? 'checkmark' : 'arrow-forward'}
-        onPress={() => {
-          void haptic(last ? 'success' : 'light');
-          if (last) router.replace('/');
-          else setIndex((value) => value + 1);
-        }}
-      />
+      </ScrollView>
+      <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm, backgroundColor: colors.bg }}>
+        {index > 0 ? (
+          <Button label="Previous landmark" variant="secondary" onPress={() => setIndex((value) => value - 1)} />
+        ) : null}
+        <Button
+          label={last ? "I've arrived" : "I'm here — next"}
+          icon={last ? 'checkmark' : 'arrow-forward'}
+          onPress={() => {
+            void haptic(last ? 'success' : 'light');
+            if (last) router.replace('/');
+            else setIndex((value) => value + 1);
+          }}
+        />
+      </View>
     </Screen>
+  );
+}
+
+function actionIcon(edge: string | null): keyof typeof Ionicons.glyphMap {
+  if (edge === 'ramp') return 'trending-up';
+  if (edge === 'lift') return 'swap-vertical';
+  if (edge === 'stairs') return 'warning';
+  if (edge === 'corridor' || edge === 'path') return 'arrow-forward';
+  return 'locate';
+}
+
+function StepDot({
+  step,
+  index,
+  current,
+  done,
+  floorChange,
+  onPress,
+}: {
+  step: RouteStep;
+  index: number;
+  current: boolean;
+  done: boolean;
+  floorChange: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      {index > 0 ? (
+        <View style={{ width: 14, height: floorChange ? 8 : 2, borderRadius: 4, backgroundColor: floorChange ? colors.accentSoft : colors.line }} />
+      ) : null}
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Step ${index + 1}, ${step.node_name}${floorChange ? ', floor change' : ''}`}
+        accessibilityState={{ selected: current }}
+        onPress={onPress}
+        style={{ width: 48, height: 48, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{
+            width: current ? 16 : 10,
+            height: current ? 16 : 10,
+            borderRadius: 8,
+            backgroundColor: current || done ? colors.primary : colors.line,
+            borderWidth: floorChange ? 2 : 0,
+            borderColor: colors.accentSoft,
+          }}
+        />
+      </Pressable>
+    </View>
   );
 }

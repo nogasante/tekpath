@@ -3,6 +3,7 @@ import { Tabs } from 'expo-router';
 import { View } from 'react-native';
 
 import { useTheme } from '@/context/Theme';
+import { font } from '@/lib/theme';
 
 export default function TabLayout() {
   const { colors } = useTheme();
@@ -11,7 +12,7 @@ export default function TabLayout() {
       screenOptions={{
         headerStyle: { backgroundColor: colors.bg },
         headerTintColor: colors.ink,
-        headerTitleStyle: { fontWeight: '700', fontSize: 20, color: colors.ink },
+        headerTitleStyle: { fontFamily: font.semibold, fontSize: 20, color: colors.ink },
         headerShadowVisible: false,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.muted,
@@ -21,7 +22,7 @@ export default function TabLayout() {
           borderTopWidth: 1,
           paddingTop: 6,
         },
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '700' },
+        tabBarLabelStyle: { fontFamily: font.semibold, fontSize: 12 },
         tabBarItemStyle: { minHeight: 48 },
       }}>
       <Tabs.Screen

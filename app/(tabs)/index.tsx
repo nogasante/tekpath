@@ -2,20 +2,23 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { router } from 'expo-router';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Ionicons } from '@expo/vector-icons';
-import { Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
+import { Image, Pressable, ScrollView, useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Mark } from '@/components/Logo';
 import { CampusMap, MapControls, type MapHandle, type MapPadding } from '@/components/CampusMap';
+import { Frosted } from '@/components/Glass';
+import { Mark } from '@/components/Logo';
 import { Sheet } from '@/components/Sheet';
-import { AppText, Chip, EmptyState, KindBadge, ListRow, Notice, Skeleton, StatusBadge, Button } from '@/components/ui';
+import { AppText, Chip, EmptyState, KindBadge, Notice, Skeleton, StatusBadge, Button } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
+import { formatAgo, formatDistance, metresBetween } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { WELCOME_KEY } from '@/lib/welcome';
 import { supabase, supabaseConfigError } from '@/lib/supabase';
-import { elevation, radii, spacing, type as typeScale } from '@/lib/theme';
+import { campus, elevation, spacing, type as typeScale } from '@/lib/theme';
 import type { AccessFeature, FeatureStatus } from '@/lib/types';
+import { kindLabel } from '@/lib/types';
 
 const filters: { id: 'all' | FeatureStatus; label: string }[] = [
   { id: 'all', label: 'All' },
@@ -34,9 +37,10 @@ export default function MapScreen() {
   const { width } = useWindowDimensions();
   const wide = width >= 900;
   const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
+  const { colors, reduceMotion } = useTheme();
   const { startNode } = useAppState();
   const mapRef = useRef<MapHandle>(null);
+  const listRef = useRef<ScrollView>(null);
   const [boxHeight, setBoxHeight] = useState(0);
   const [gate, setGate] = useState(false);
   const [features, setFeatures] = useState<AccessFeature[]>([]);
@@ -44,6 +48,7 @@ export default function MapScreen() {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<(typeof filters)[number]['id']>('all');
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [photos, setPhotos] = useState<Record<string, string>>({});
 
   useEffect(() => {
     let live = true;
@@ -67,6 +72,16 @@ export default function MapScreen() {
       setError(null);
       setFeatures((data ?? []) as AccessFeature[]);
     }
+    const reports = await supabase.from('report_feed').select('feature_id,photo_url').order('created_at', { ascending: false }).limit(40);
+    if (!reports.error) {
+      const next: Record<string, string> = {};
+      for (const row of reports.data ?? []) {
+        const photo = row.photo_url as string | null;
+        const featureId = row.feature_id as string | null;
+        if (photo && featureId && !next[featureId]) next[featureId] = photo;
+      }
+      setPhotos(next);
+    }
     setLoading(false);
   }, []);
 
@@ -74,7 +89,7 @@ export default function MapScreen() {
     if (supabaseConfigError) return;
     load();
     const channel = supabase
-      .channel('tekpath-map')
+      .channel(`tekpath-map-${Math.random().toString(36).slice(2)}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'features' }, () => load())
       .subscribe();
     return () => {
@@ -90,20 +105,26 @@ export default function MapScreen() {
     [features, filter],
   );
   const selected = features.find((feature) => feature.id === selectedId) ?? null;
-  const collapsed = Math.max(230, Math.round((boxHeight || 700) * 0.36));
-  const expanded = Math.max(collapsed + 80, Math.round((boxHeight || 700) * 0.74));
+  const peek = Math.max(248, Math.round((boxHeight || 780) * 0.34));
+  const mid = Math.max(peek + 90, Math.round((boxHeight || 780) * 0.56));
+  const full = Math.max(mid + 48, Math.round((boxHeight || 780) * 0.82));
+  const snaps = useMemo(() => [peek, mid, full], [full, mid, peek]);
   const padding = useMemo<MapPadding>(
     () => ({
-      top: insets.top + 132,
+      top: insets.top + 128,
       right: 20,
-      bottom: wide ? 48 : collapsed + 16,
+      bottom: wide ? 48 : peek + 12,
       left: 72,
     }),
-    [collapsed, insets.top, wide],
+    [insets.top, peek, wide],
   );
+  const origin = startNode
+    ? { latitude: startNode.latitude, longitude: startNode.longitude }
+    : campus;
 
   function choose(id: string) {
     setSelectedId(id);
+    listRef.current?.scrollTo({ y: 0, animated: !reduceMotion });
   }
 
   function routeTo(feature: AccessFeature) {
@@ -137,21 +158,32 @@ export default function MapScreen() {
   );
 
   const sheetBody = (
-    <ScrollView style={{ flex: 1 }} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: spacing.md, paddingBottom: spacing.xl }}>
+    <ScrollView
+      ref={listRef}
+      style={{ flex: 1 }}
+      keyboardShouldPersistTaps="handled"
+      contentContainerStyle={{ gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}>
+      {startLink}
       {selected ? (
-        <View style={{ gap: spacing.sm }}>
+        <View style={{ gap: spacing.sm, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line }}>
           <AppText size={typeScale.headline} weight="700">
             {selected.name}
           </AppText>
-          <View style={{ flexDirection: 'row', gap: spacing.md, flexWrap: 'wrap', alignItems: 'center' }}>
+          <View style={{ flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap', alignItems: 'center' }}>
             <KindBadge kind={selected.kind} />
             <StatusBadge status={selected.status} />
           </View>
           <AppText size={typeScale.label} color={colors.muted}>
-            {selected.last_reported_at
-              ? `Last report ${new Date(selected.last_reported_at).toLocaleString()}`
-              : 'No reports yet. Status can still change.'}
+            {distanceFrom(selected, origin.latitude, origin.longitude)}
+            {startNode ? ' from your start' : ' from campus centre'} · {formatAgo(selected.last_reported_at)}
           </AppText>
+          {photos[selected.id] ? (
+            <Image
+              source={{ uri: photos[selected.id] }}
+              accessible={false}
+              style={{ width: '100%', height: 140, borderRadius: 16 }}
+            />
+          ) : null}
           <Button
             label={startNode ? 'Route here from my start' : 'Choose a start, then route here'}
             icon="navigate"
@@ -159,49 +191,31 @@ export default function MapScreen() {
             onPress={() => routeTo(selected)}
             disabled={!selected.node_id}
           />
-          <Button
-            label="Details and reports"
-            icon="document-text"
-            variant="secondary"
-            onPress={() => router.push(`/feature/${selected.id}`)}
-          />
-          {!selected.node_id ? (
-            <AppText size={typeScale.label} color={colors.muted}>
-              This point is not linked to the route graph yet.
-            </AppText>
-          ) : null}
-          {startLink}
+          <Button label="Details and reports" icon="document-text" variant="secondary" onPress={() => router.push(`/feature/${selected.id}`)} />
         </View>
       ) : (
-        <View style={{ gap: spacing.sm }}>
-          {startLink}
-          <AppText size={typeScale.label} color={colors.muted}>
-            Broken points are listed first. Tap a row or a pin. Letters mark the kind; the symbol marks Working, Broken, or Unknown.
-          </AppText>
-        </View>
+        <AppText size={typeScale.label} color={colors.muted}>
+          Broken points come first. Pins show the kind, and a badge shows Working, Broken, or Unknown.
+        </AppText>
       )}
       {loading ? (
         <View style={{ gap: spacing.sm }}>
-          <Skeleton height={64} />
-          <Skeleton height={64} />
-          <Skeleton height={64} />
+          <Skeleton height={76} />
+          <Skeleton height={76} />
+          <Skeleton height={76} />
         </View>
       ) : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}
       {!loading && shown.length === 0 ? (
-        <EmptyState
-          icon="filter"
-          title="Nothing in this filter"
-          body="Broken lifts and ramps show up here as people report them."
-        />
+        <EmptyState icon="filter" title="Nothing in this filter" body="Broken lifts and ramps show up here as people report them." />
       ) : null}
       {shown.map((item) => (
-        <ListRow
+        <PlaceRow
           key={item.id}
-          title={item.name}
-          subtitle={`${kindLabelSafe(item.kind)} · ${item.status === 'working' ? 'Working' : item.status === 'broken' ? 'Broken' : 'Unknown'}`}
-          icon={item.kind === 'lift' ? 'swap-vertical' : item.kind === 'ramp' ? 'trending-up' : 'location'}
-          accessibilityLabel={`${item.name}, ${item.kind}, ${item.status}`}
+          feature={item}
+          distance={distanceFrom(item, origin.latitude, origin.longitude)}
+          photo={photos[item.id]}
+          selected={item.id === selectedId}
           onPress={() => choose(item.id)}
         />
       ))}
@@ -231,26 +245,13 @@ export default function MapScreen() {
               accessibilityRole="button"
               accessibilityLabel="Search buildings and rooms"
               onPress={() => router.push('/search')}
-              style={({ pressed }) => [
-                {
-                  flex: 1,
-                  minHeight: 52,
-                  borderRadius: radii.pill,
-                  backgroundColor: colors.bgElevated,
-                  borderWidth: 1,
-                  borderColor: colors.line,
-                  paddingHorizontal: 14,
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  gap: 10,
-                  opacity: pressed ? 0.9 : 1,
-                },
-                elevation(colors, 2),
-              ]}>
-              <Mark size={26} />
-              <AppText color={colors.muted} style={{ flex: 1 }}>
-                Search buildings and rooms
-              </AppText>
+              style={({ pressed }) => [{ flex: 1, opacity: pressed ? 0.9 : 1, transform: [{ scale: pressed ? 0.99 : 1 }] }]}>
+              <Frosted style={{ flex: 1, minHeight: 52, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <Mark size={26} />
+                <AppText color={colors.muted} style={{ flex: 1 }}>
+                  Search buildings and rooms
+                </AppText>
+              </Frosted>
             </Pressable>
             <Pressable
               accessibilityRole="button"
@@ -288,7 +289,7 @@ export default function MapScreen() {
       {wide ? (
         <View style={{ width: 380, borderLeftWidth: 1, borderLeftColor: colors.line, backgroundColor: colors.bg }}>{sheetBody}</View>
       ) : (
-        <Sheet collapsed={collapsed} expanded={expanded}>
+        <Sheet snaps={snaps} focus={selectedId ? 1 : 0}>
           {sheetBody}
         </Sheet>
       )}
@@ -296,11 +297,82 @@ export default function MapScreen() {
   );
 }
 
-function kindLabelSafe(kind: string) {
-  if (kind === 'lift') return 'Lift';
-  if (kind === 'ramp') return 'Ramp';
-  if (kind === 'toilet') return 'Accessible toilet';
-  if (kind === 'parking') return 'Parking';
-  if (kind === 'entrance') return 'Entrance';
-  return kind;
+function distanceFrom(feature: AccessFeature, latitude: number, longitude: number) {
+  return formatDistance(metresBetween(latitude, longitude, Number(feature.latitude), Number(feature.longitude)));
+}
+
+function placeIcon(kind: string): keyof typeof Ionicons.glyphMap {
+  if (kind === 'lift') return 'swap-vertical';
+  if (kind === 'ramp') return 'trending-up';
+  if (kind === 'toilet') return 'body';
+  if (kind === 'parking') return 'car';
+  if (kind === 'entrance') return 'enter-outline';
+  return 'location';
+}
+
+function PlaceRow({
+  feature,
+  distance,
+  photo,
+  selected,
+  onPress,
+}: {
+  feature: AccessFeature;
+  distance: string;
+  photo?: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const { colors } = useTheme();
+  const status = feature.status === 'working' ? 'Working' : feature.status === 'broken' ? 'Broken' : 'Unknown';
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
+      accessibilityLabel={`${feature.name}, ${kindLabel(feature.kind)}, ${status}, ${distance}, ${formatAgo(feature.last_reported_at)}`}
+      onPress={() => {
+        void haptic('selection');
+        onPress();
+      }}
+      style={({ pressed }) => ({
+        minHeight: 76,
+        padding: spacing.md,
+        borderRadius: 18,
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? colors.primary : colors.line,
+        backgroundColor: pressed ? colors.primaryMuted : colors.bgElevated,
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.md,
+      })}>
+      <View
+        style={{
+          width: 44,
+          height: 44,
+          borderRadius: 14,
+          backgroundColor: colors.primaryMuted,
+          alignItems: 'center',
+          justifyContent: 'center',
+        }}>
+        <Ionicons name={placeIcon(feature.kind)} size={20} color={colors.primary} aria-hidden />
+      </View>
+      <View style={{ flex: 1, gap: 4 }}>
+        <AppText weight="700">{feature.name}</AppText>
+        <AppText size={typeScale.caption} color={colors.muted}>
+          {kindLabel(feature.kind)} · {distance}
+        </AppText>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.sm, flexWrap: 'wrap' }}>
+          <StatusBadge status={feature.status} />
+          <AppText size={typeScale.caption} color={colors.muted}>
+            {formatAgo(feature.last_reported_at)}
+          </AppText>
+        </View>
+      </View>
+      {photo ? (
+        <Image source={{ uri: photo }} accessible={false} style={{ width: 48, height: 48, borderRadius: 12 }} />
+      ) : (
+        <Ionicons name="chevron-forward" size={18} color={colors.muted} aria-hidden />
+      )}
+    </Pressable>
+  );
 }
