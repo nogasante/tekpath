@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, type Region as NativeRegion } from 'react-native-maps';
 
@@ -18,6 +18,7 @@ import {
   zoomForDelta,
   type LatLng,
   type MapHandle,
+  type MapPadding,
   type MapProps,
   type Region,
 } from '@/components/mapShared';
@@ -33,12 +34,17 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
   ref,
 ) {
   const { mode, reduceMotion } = useTheme();
-  const pad = padding ?? { top: 72, right: 24, bottom: 220, left: 64 };
+  const pad = useMemo<MapPadding>(
+    () => padding ?? { top: 72, right: 24, bottom: 220, left: 64 },
+    [padding?.top, padding?.right, padding?.bottom, padding?.left],
+  );
   const mapRef = useRef<MapView>(null);
   const regionRef = useRef<Region>(campusRegion);
+  const readyRef = useRef(false);
   const [region, setRegion] = useState<Region>(campusRegion);
   const [quiet, setQuiet] = useState(false);
   const [ready, setReady] = useState(false);
+  const mapStyle = useMemo(() => mapStyleFor(mode, quiet), [mode, quiet]);
   const [size, setSize] = useState({ width: 360, height: 640 });
   const framed = useRef(false);
   const points = finitePoints(features);
@@ -50,6 +56,8 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
     const clamped = clampRegion(next);
     regionRef.current = clamped;
     setRegion(clamped);
+    // animateToRegion and fitToCoordinates both touch GoogleMap. Skip them until onMapReady.
+    if (!readyRef.current) return;
     mapRef.current?.animateToRegion(clamped, animated && !reduceMotion ? 420 : 0);
   }
 
@@ -115,7 +123,7 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
         provider={provider}
         style={{ flex: 1 }}
         initialRegion={campusRegion}
-        customMapStyle={mapStyleFor(mode, quiet)}
+        customMapStyle={ready ? mapStyle : undefined}
         userInterfaceStyle={mode}
         showsUserLocation={interactive}
         showsMyLocationButton={false}
@@ -127,10 +135,11 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
         zoomEnabled={interactive}
         minZoomLevel={13}
         maxZoomLevel={19}
-        mapPadding={pad}
+        mapPadding={ready ? pad : undefined}
         loadingBackgroundColor={landColor(mode)}
         accessibilityLabel="KNUST campus map"
         onMapReady={() => {
+          readyRef.current = true;
           mapRef.current?.setMapBoundaries(campusBounds.northEast, campusBounds.southWest);
           setReady(true);
         }}
