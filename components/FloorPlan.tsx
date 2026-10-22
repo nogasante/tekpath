@@ -1,7 +1,9 @@
 import { useEffect } from 'react';
 import { View } from 'react-native';
 import Animated, { Easing, useAnimatedProps, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import Svg, { Circle, G, Path, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Line, Path, Rect, Text as SvgText } from 'react-native-svg';
+
+import { glyph } from '@/components/glyphs';
 
 import { AppText } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
@@ -46,7 +48,7 @@ export function FloorPlan({
 
   return (
     <View accessibilityLabel="Floor diagram with the step-free line and your place. Follow the written landmark.">
-      <Svg viewBox="0 0 100 100" width="100%" height={200}>
+      <Svg viewBox="0 0 100 100" width="100%" height={268}>
         <Rect x="1.5" y="1.5" width="97" height="97" rx="8" fill={colors.bg} stroke={colors.line} strokeWidth="1.2" />
         {rooms.map((room) => {
           const active = activeName != null && room.name.toLowerCase().includes(activeName.toLowerCase().slice(0, 10));
@@ -66,7 +68,7 @@ export function FloorPlan({
         })}
         {rooms.map((room) => (
           <G key={`${room.name}-mark`}>
-            <RoomGlyph name={room.name} x={room.x + room.w / 2} y={room.y + 4.6} color={colors.primary} />
+            <RoomGlyph name={room.name} x={room.x + room.w / 2} y={room.y + Math.min(room.h * 0.4, 8)} color={colors.primary} />
             <SvgText
               x={room.x + room.w / 2}
               y={room.y + room.h - 2.4}
@@ -110,28 +112,20 @@ function shortRoom(name: string) {
 
 function RoomGlyph({ name, x, y, color }: { name: string; x: number; y: number; color: string }) {
   const key = name.toLowerCase();
-  if (key.includes('lift')) {
-    return (
-      <G transform={`translate(${x - 1.6} ${y - 2})`}>
-        <Path d="M0.6 3.2 V0.4 M0 1.2 L0.6 0.4 L1.2 1.2 M2.6 0.4 V3.2 M2 2.4 L2.6 3.2 L3.2 2.4" stroke={color} strokeWidth={0.45} fill="none" strokeLinecap="round" />
-      </G>
-    );
-  }
-  if (key.includes('stair')) {
-    return <Path d={`M${x - 2} ${y + 1.4} h1.2 v-1.1 h1.2 v-1.1 h1.2`} stroke={color} strokeWidth={0.5} fill="none" strokeLinejoin="round" />;
-  }
-  if (key.includes('toilet')) {
-    return (
-      <G>
-        <Circle cx={x} cy={y - 1.3} r={0.7} fill={color} />
-        <Path d={`M${x} ${y - 0.3} v1.2 M${x - 1.1} ${y + 1.8} L${x} ${y + 0.8} L${x + 1.1} ${y + 1.8}`} stroke={color} strokeWidth={0.45} fill="none" strokeLinecap="round" />
-      </G>
-    );
-  }
-  if (key.includes('ramp')) {
-    return <Path d={`M${x - 2} ${y + 1.6} L${x + 1.6} ${y - 1.2} h1.2 v1.2`} stroke={color} strokeWidth={0.5} fill="none" strokeLinecap="round" strokeLinejoin="round" />;
-  }
-  return <Rect x={x - 1.5} y={y - 1.2} width={3} height={2.4} rx={0.4} fill="none" stroke={color} strokeWidth={0.45} />;
+  const icon = key.includes('lift') ? 'lift' : key.includes('stair') ? 'stairs' : key.includes('toilet') ? 'toilet' : key.includes('ramp') ? 'ramp' : 'entrance';
+  const tags = [...glyph[icon].matchAll(/<(\w+)\s+([^>]*?)\/>/g)];
+  return (
+    <G transform={`translate(${x - 4.56} ${y - 4.56}) scale(0.38)`} stroke={color} fill="none" strokeWidth={2.15} strokeLinecap="round" strokeLinejoin="round">
+      {tags.map((tag, index) => {
+        const attrs = Object.fromEntries([...tag[2].matchAll(/([\w-]+)="([^"]*)"/g)].map((item) => [item[1], item[2]]));
+        if (tag[1] === 'path') return <Path key={index} d={attrs.d} />;
+        if (tag[1] === 'circle') return <Circle key={index} cx={Number(attrs.cx)} cy={Number(attrs.cy)} r={Number(attrs.r)} />;
+        if (tag[1] === 'rect') return <Rect key={index} x={Number(attrs.x)} y={Number(attrs.y)} width={Number(attrs.width)} height={Number(attrs.height)} rx={Number(attrs.rx || 0)} />;
+        if (tag[1] === 'line') return <Line key={index} x1={Number(attrs.x1)} y1={Number(attrs.y1)} x2={Number(attrs.x2)} y2={Number(attrs.y2)} />;
+        return null;
+      })}
+    </G>
+  );
 }
 
 function toPath(points: Point[]) {

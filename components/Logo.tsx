@@ -1,23 +1,18 @@
 import { View } from 'react-native';
-import Svg, { Circle, Path } from 'react-native-svg';
+import { SvgXml } from 'react-native-svg';
 
+import { glyph } from '@/components/glyphs';
 import { AppText } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
 
 export function Mark({ size = 32, color }: { size?: number; color?: string }) {
   const { colors } = useTheme();
   const ink = color ?? colors.primary;
+  const xml = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="${ink}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${glyph.route}</svg>`;
   return (
-    <Svg width={size} height={size} viewBox="0 0 32 32" aria-hidden>
-      <Path
-        d="M5 25 C10 25 12 18 16 15.5 C19.2 13.4 21 10.5 23 7.5"
-        stroke={ink}
-        strokeWidth={2.6}
-        strokeLinecap="round"
-        fill="none"
-      />
-      <Circle cx="23" cy="7.2" r="2.5" fill={ink} />
-    </Svg>
+    <View aria-hidden>
+      <SvgXml xml={xml} width={size} height={size} />
+    </View>
   );
 }
 

@@ -5,7 +5,7 @@ import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 import Svg, { Circle, Path } from 'react-native-svg';
 
-import { BlockedRouteArt, KenteBand } from '@/components/Illustrations';
+import { LostArt } from '@/components/Illustrations';
 import { AppText, Button, Card, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
@@ -75,7 +75,7 @@ export default function RouteScreen() {
       {error ? <Notice tone="bad">{error}</Notice> : null}
       {result && !result.ok ? (
         <View style={{ gap: spacing.md }}>
-          <BlockedRouteArt />
+          <LostArt />
           <AppText accessibilityRole="header" size={typeScale.title} weight="700">
             No step-free way right now
           </AppText>
@@ -103,7 +103,6 @@ export default function RouteScreen() {
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={{ borderRadius: 28, padding: spacing.lg, gap: spacing.md, overflow: 'hidden' }}>
-            <KenteBand />
             <AppText accessibilityRole="header" size={typeScale.title} weight="700" color="#FFFFFF">
               {destination?.node_name ?? 'Step-free route'}
             </AppText>

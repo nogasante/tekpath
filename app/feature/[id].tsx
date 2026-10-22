@@ -5,6 +5,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
+import { ConfirmedArt } from '@/components/Illustrations';
 import { AppText, Button, Card, Field, KindBadge, Notice, Screen, Skeleton, StatusBadge } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
@@ -251,33 +252,16 @@ export default function FeatureScreen() {
 }
 
 function ReportSaved({ message }: { message: string }) {
-  const { colors, reduceMotion } = useTheme();
-  const scale = useSharedValue(reduceMotion ? 1 : 0.7);
+  const { reduceMotion } = useTheme();
+  const scale = useSharedValue(reduceMotion ? 1 : 0.92);
   useEffect(() => {
     if (!reduceMotion) scale.value = withTiming(1, { duration: 320 });
   }, [reduceMotion, scale]);
   const animated = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
   return (
-    <Card>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: spacing.md }}>
-        <Animated.View
-          style={[
-            {
-              width: 48,
-              height: 48,
-              borderRadius: 24,
-              backgroundColor: colors.workingBg,
-              alignItems: 'center',
-              justifyContent: 'center',
-            },
-            animated,
-          ]}>
-          <Ionicons name="checkmark" size={26} color={colors.workingFg} aria-hidden />
-        </Animated.View>
-        <View style={{ flex: 1 }}>
-          <Notice tone="good">{message}</Notice>
-        </View>
-      </View>
-    </Card>
+    <Animated.View style={[{ gap: spacing.sm }, animated]}>
+      <ConfirmedArt />
+      <Notice tone="good">{message}</Notice>
+    </Animated.View>
   );
 }

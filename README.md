@@ -106,6 +106,12 @@ Start from a fresh `supabase db reset` so both lifts are working and the Adminis
 
 `npm test` checks the same cases in Postgres: Lift A while both work, Lift B after Lift A is reported broken, an honest failure naming both lifts, and the seeded broken Administration Block ramp.
 
+## Artwork
+
+Onboarding, the no-route state, and the saved-report moment use illustrations from [unDraw](https://undraw.co) by Katerina Limpitsouni. The [unDraw license](https://undraw.co/license) allows commercial use and recolouring, and it does not require attribution. The files in the app are recolored to TekPath teal (`#0F6E56`) and terracotta (`#C46A3A`). The current unDraw catalog has no wheelchair, crutches, or white-cane scene, so those screens use unDraw’s map, walking, and navigation drawings instead of custom figures.
+
+Map pins, floor-plan marks, and the wordmark use [Lucide](https://lucide.dev) icons (ISC).
+
 ## Architecture
 
 ```

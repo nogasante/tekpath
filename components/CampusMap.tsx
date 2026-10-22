@@ -4,6 +4,7 @@ import { WebView } from 'react-native-webview';
 
 import { IconButton } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
+import { glyph } from '@/components/glyphs';
 import { campus } from '@/lib/theme';
 import type { AccessFeature } from '@/lib/types';
 
@@ -63,13 +64,7 @@ const MAP_HTML = `<!DOCTYPE html>
   <script>
     const words = { working: 'Working', broken: 'Broken', unknown: 'Unknown' };
     const kinds = { ramp: 'Ramp', lift: 'Lift', toilet: 'Accessible toilet', parking: 'Parking', entrance: 'Entrance' };
-    const glyphs = {
-      ramp: '<path d="M12 26 L27 14" stroke="#fff" stroke-width="2.3" stroke-linecap="round"/><path d="M21 14 h6 v6" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>',
-      lift: '<path d="M15 13 v8 M12.4 16.2 L15 13.6 L17.6 16.2 M25 25 V16 M22.4 21.6 L25 24.2 L27.6 21.6" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>',
-      toilet: '<circle cx="20" cy="14" r="2.2" fill="#fff"/><path d="M20 17.2 v4 M16.8 25 L20 21 L23.2 25" fill="none" stroke="#fff" stroke-width="1.9" stroke-linecap="round"/>',
-      parking: '<path d="M16.2 26 V13 H21.2 a4.2 4.2 0 0 1 0 8.4 H16.2" fill="none" stroke="#fff" stroke-width="2.1" stroke-linejoin="round"/>',
-      entrance: '<path d="M14 26 V15 h12 v11 M14 15 l6-4 6 4" fill="none" stroke="#fff" stroke-width="1.9" stroke-linejoin="round"/>'
-    };
+    const glyphs = ${JSON.stringify(glyph)};
     const post = (msg) => {
       const data = JSON.stringify(msg);
       if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(data);
@@ -96,12 +91,11 @@ const MAP_HTML = `<!DOCTYPE html>
       const body = selected ? '#083E32' : '#0F6E56';
       const stroke = selected ? '#E8A06A' : '#FFFFFF';
       const badge = status === 'broken' ? '#9B1C1C' : status === 'unknown' ? '#8A5A00' : '#0B5C34';
-      const mark = status === 'broken'
-        ? '<path d="M31 6.4 v4 M31 12.2 v.8" stroke="#fff" stroke-width="1.6" stroke-linecap="round"/>'
-        : status === 'unknown'
-          ? '<path d="M31 5.6 c1.3 0 2.1.7 2.1 1.7 0 1.5-2.1 1.6-2.1 3 M31 12.4 v.6" stroke="#fff" stroke-width="1.4" stroke-linecap="round"/>'
-          : '<path d="M28.2 9.2 l1.7 1.7 3.2-3.4" fill="none" stroke="#fff" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>';
-      return '<svg width="44" height="52" viewBox="0 0 44 52"><ellipse cx="22" cy="48" rx="7" ry="2.2" fill="rgba(28,36,32,0.28)"/><path d="M22 46 C22 46 6 30 6 18.5 a16 16 0 0 1 32 0 C38 30 22 46 22 46 Z" fill="' + body + '" stroke="' + stroke + '" stroke-width="' + (selected ? 3 : 2) + '"/><g transform="translate(2 0)">' + (glyphs[kind] || glyphs.entrance) + '</g><circle cx="33" cy="9" r="6.4" fill="' + badge + '" stroke="#fff" stroke-width="1.6"/>' + mark + '</svg>';
+      const badgeName = status === 'broken' ? 'broken' : status === 'unknown' ? 'unknown' : 'check';
+      const mark = 'fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round"';
+      const icon = '<g transform="translate(24,19.5) scale(0.92) translate(-12,-12)" ' + mark + ' stroke-width="2.35">' + (glyphs[kind] || glyphs.entrance) + '</g>';
+      const badgeMark = '<g transform="translate(37,10) scale(0.4) translate(-12,-12)" ' + mark + ' stroke-width="2.6">' + glyphs[badgeName] + '</g>';
+      return '<svg width="48" height="56" viewBox="0 0 48 56"><ellipse cx="24" cy="52" rx="7" ry="2.2" fill="rgba(28,36,32,0.28)"/><path d="M24 50 C24 50 5 33 5 20 a19 19 0 0 1 38 0 C43 33 24 50 24 50 Z" fill="' + body + '" stroke="' + stroke + '" stroke-width="' + (selected ? 2.6 : 2) + '"/>' + icon + '<circle cx="37" cy="10" r="7" fill="' + badge + '" stroke="#fff" stroke-width="1.7"/>' + badgeMark + '</svg>';
     }
     function clusterHtml(count) {
       return '<div style="width:44px;height:44px;border-radius:22px;background:#0F6E56;color:#fff;text-align:center;line-height:38px;font:700 15px/38px sans-serif;border:3px solid #fff;box-shadow:0 6px 16px rgba(28,36,32,.22)">' + count + '</div>';
@@ -181,7 +175,7 @@ const MAP_HTML = `<!DOCTYPE html>
         const status = feature.status === 'working' || feature.status === 'broken' ? feature.status : 'unknown';
         const selected = feature.id === msg.selectedId;
         const marker = L.marker([group[0].lat, group[0].lng], {
-          icon: iconFor(pinHtml(feature.kind, status, selected), 44, 52, 22, 46),
+          icon: iconFor(pinHtml(feature.kind, status, selected), 48, 56, 24, 50),
           zIndexOffset: selected ? 800 : 200
         });
         marker.on('click', () => post({ type: 'select', id: feature.id }));
