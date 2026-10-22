@@ -284,6 +284,7 @@ export default function GuideScreen() {
           icon={last ? 'checkmark' : 'arrow-forward'}
           onPress={() => {
             void haptic(last ? 'success' : 'light');
+            if (step?.floor_level != null) correctFloor(step.floor_level);
             if (last) setArrived(true);
             else setIndex((value) => value + 1);
           }}

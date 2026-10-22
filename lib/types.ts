@@ -61,12 +61,19 @@ export type StartNode = {
   hpaPerM: number;
 };
 
+export type FloorMotion = 'unknown' | 'still' | 'moving' | 'lift' | 'stairs';
+
 export type FloorReading = {
   level: number | null;
   label: string;
   source: 'barometer' | 'manual' | 'none' | 'outdoor';
   pressure: number | null;
   available: boolean;
+  /** Smoothed height relative to the last anchor. Positive is up. */
+  heightM: number | null;
+  confidence: number | null;
+  needsRecalibration: boolean;
+  motion: FloorMotion | null;
 };
 
 export function asRoute(data: unknown): RouteResult {

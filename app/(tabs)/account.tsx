@@ -10,7 +10,42 @@ import { useToast } from '@/context/Toast';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { radii, spacing, type as typeScale } from '@/lib/theme';
+import type { FloorMotion } from '@/lib/types';
 import { WELCOME_KEY } from '@/lib/welcome';
+
+function formatHeight(metres: number) {
+  const sign = metres > 0.005 ? '+' : '';
+  return `${sign}${metres.toFixed(2)} m`;
+}
+
+function motionLabel(motion: FloorMotion | null) {
+  switch (motion) {
+    case 'still':
+      return 'Still';
+    case 'moving':
+      return 'Moving';
+    case 'lift':
+      return 'Lift';
+    case 'stairs':
+      return 'Stairs';
+    case 'unknown':
+      return 'Pressure only';
+    default:
+      return '—';
+  }
+}
+
+function SensorLine({ label, value }: { label: string; value: string }) {
+  const { colors } = useTheme();
+  return (
+    <View style={{ flexDirection: 'row', justifyContent: 'space-between', gap: spacing.md, alignItems: 'center' }}>
+      <AppText color={colors.muted} style={{ flex: 1 }}>
+        {label}
+      </AppText>
+      <AppText weight="700">{value}</AppText>
+    </View>
+  );
+}
 
 const scales = [
   { value: 1, label: 'Default text' },
@@ -124,6 +159,25 @@ export default function AccountScreen() {
         <Button label="Choose your start" variant="secondary" icon="locate" onPress={() => router.push('/pick-start')} />
         {startNode ? (
           <Button label="Clear start point" variant="ghost" onPress={() => setStartNode(null)} />
+        ) : null}
+      </Card>
+      <Card>
+        <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+          Floor sensor
+        </AppText>
+        <AppText size={typeScale.label} color={colors.muted}>
+          Live pressure from this phone. A lift or stairs can update the floor; a gust while you are still does not.
+        </AppText>
+        <SensorLine label="Pressure" value={floor.pressure != null ? `${floor.pressure.toFixed(2)} hPa` : 'No reading yet'} />
+        <SensorLine label="Smoothed height" value={floor.heightM != null ? formatHeight(floor.heightM) : '—'} />
+        <SensorLine label="Detected floor" value={floor.label} />
+        <SensorLine
+          label="Confidence"
+          value={floor.confidence != null ? `${Math.round(floor.confidence * 100)}%` : '—'}
+        />
+        <SensorLine label="Activity" value={motionLabel(floor.motion)} />
+        {floor.needsRecalibration ? (
+          <Notice>This anchor is over 15 minutes old. Confirm a landmark, or pick your start again.</Notice>
         ) : null}
       </Card>
       {session ? (
