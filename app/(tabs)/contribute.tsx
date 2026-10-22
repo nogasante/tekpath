@@ -11,14 +11,16 @@ export default function ContributeScreen() {
   return (
     <Screen scroll>
       <AppText size={typeScale.body} color={colors.muted}>
-        Browsing is open to everyone. Adding a point, a floor, or a report needs a signed-in student account.
+        The map, search, routes, and indoor guidance work with no account. Adding a point or a report asks you to continue as a guest, or with an email.
       </AppText>
       {!session ? (
-        <Button label="Sign in to contribute" icon="log-in" haptic="light" onPress={() => router.push('/login')} />
+        <Button label="Continue as guest or with email" icon="person" haptic="light" onPress={() => router.push('/login')} />
       ) : (
         <Card>
-          <AppText weight="700">Signed in</AppText>
-          <AppText color={colors.muted}>{session.user.email}</AppText>
+          <AppText weight="700">{session.user.is_anonymous ? 'Guest' : 'Signed in'}</AppText>
+          <AppText color={colors.muted}>
+            {session.user.is_anonymous ? 'Reports stay on this phone until you add an email.' : session.user.email}
+          </AppText>
         </Card>
       )}
       <Button label="Add an accessibility point" icon="location" haptic="light" onPress={() => router.push('/add-point')} />

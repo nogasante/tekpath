@@ -33,7 +33,15 @@ function RootNavigator() {
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
         <Stack.Screen name="welcome" options={{ headerShown: false, animation: reduceMotion ? 'none' : 'fade' }} />
-        <Stack.Screen name="login" options={{ title: 'Sign in', presentation: 'modal' }} />
+        <Stack.Screen
+          name="login"
+          options={{
+            headerShown: false,
+            presentation: 'transparentModal',
+            animation: reduceMotion ? 'none' : 'slide_from_bottom',
+            contentStyle: { backgroundColor: 'transparent' },
+          }}
+        />
         <Stack.Screen name="feature/[id]" options={{ title: 'Accessibility point' }} />
         <Stack.Screen name="route" options={{ title: 'Step-free route' }} />
         <Stack.Screen name="guide" options={{ title: 'Guidance' }} />

@@ -37,7 +37,8 @@ Local demo account (created by the seed):
 
 - Email: `demo@tekpath.app`
 - Password: `TekpathDemo2026` (local stack only; do not reuse it on a hosted project)
-- Magic links and sign-up mail land in Mailpit at http://127.0.0.1:54324
+- Sign-up mail lands in Mailpit at http://127.0.0.1:54324
+- Local auth allows anonymous guest sign-in and linking an email onto that guest (`enable_anonymous_sign_ins` and `enable_manual_linking` in `supabase/config.toml`)
 
 If `supabase start` hangs on “Initialising schema” with database connection timeouts, Docker’s legacy iptables `FORWARD` policy may be `DROP`, which blocks container-to-container traffic. On this kind of VM, `sudo iptables-legacy -P FORWARD ACCEPT` unblocks it. Realtime is set to IPv4 in `supabase/config.toml` for the same local Docker network.
 
@@ -46,7 +47,7 @@ If `supabase start` hangs on “Initialising schema” with database connection 
 Apply the SQL files in `supabase/migrations` **in filename order** on an empty project. Each file is one migration. Keep `supabase/seed.sql` separate; it is not a migration.
 
 1. Create a project at [supabase.com](https://supabase.com).
-2. Run `20261021220549_tekpath_schema.sql`, then `20261021231633_privacy_profile_needs.sql`. The first file enables PostGIS and pgcrypto in the `extensions` schema and creates the `report-photos` storage bucket and its policies.
+2. Run every file in `supabase/migrations` in filename order. `20261021220549_tekpath_schema.sql` enables PostGIS and pgcrypto in the `extensions` schema and creates the `report-photos` storage bucket. `20261022105043_guest_identity.sql` labels guest profiles. The report and profile policies already allow anonymous users, because they use the `authenticated` role.
 3. Create the demo account with the Auth admin API (or the dashboard), not by inserting into `auth.users`. Hosted GoTrue does not treat a raw SQL insert as a reliable sign-in:
 
 ```bash
@@ -59,7 +60,7 @@ curl -X POST "$EXPO_PUBLIC_SUPABASE_URL/auth/v1/admin/users" \
 
 The new-user trigger creates `profiles` and an empty `profile_private` row. Use the service role only for this call. Do not put it in the app.
 4. Run `supabase/seed.sql` in the SQL editor after that user exists if you want the KNUST graph. The auth insert is skipped when it cannot write `auth.users` or when the email already exists. The Administration Block “broken” report is attached to `demo@tekpath.app` only when that account is already there.
-5. In Authentication → URL configuration, set the site URL and add redirect URLs before magic links or email confirmation will open the app. See the phone section below.
+5. In Authentication → Sign In / Providers, turn on **Allow anonymous sign-ins** and **Manual linking**. Anonymous guests use the same `authenticated` role as email users. See the phone section for email confirmation.
 6. Copy the project URL and the anon key, or the publishable key, into `.env` as `EXPO_PUBLIC_SUPABASE_URL` and `EXPO_PUBLIC_SUPABASE_ANON_KEY`. Restart Expo after changing them.
 
 ## Test on your phone with Expo Go
@@ -74,11 +75,12 @@ npx expo start --tunnel --port 43123
 
 `--tunnel` is the reliable path when the phone is not on the same Wi-Fi as the computer. Scan the QR code with Expo Go. The project stays inside Expo Go: camera, sensors, image picker, and the maps SDK that Expo Go already ships (Google Maps on Android, Apple Maps on iOS). There is no custom native code and no Bluetooth.
 
-Auth redirect URLs, in the hosted dashboard under Authentication → URL configuration:
+Hosted auth settings:
 
-- Site URL: `tekpath://` is enough for the app scheme. Add your Expo web origin too if you test in a browser.
-- Additional redirect URLs: `tekpath://**`, `exp://**`, and `https://*.exp.direct/**` (the tunnel host). Magic links use `Linking.createURL('/')`, which is an `exp://` URL in Expo Go and `tekpath://` in a built app. If the link’s URL is not on this list, Supabase sends the person to the site URL instead of back into Expo Go.
-- Email confirmation: hosted projects often require it. Password sign-up then waits for the email link. The admin API call above sets `email_confirm: true`, so the demo account can sign in with a password immediately. You can also turn off “Confirm email” for the hackathon.
+- Authentication → Sign In / Providers → **Allow anonymous sign-ins**. Without this, the app hides “Continue as guest” and asks for an email.
+- Authentication → Sign In / Providers → **Manual linking**. Without this, a guest cannot add an email from Account.
+- Authentication → Sign In / Providers → Email → **Confirm email**. Turn it off for the hackathon if you want sign-up to enter immediately. Leave it on and the app shows “Check your email to confirm”, with resend. The demo admin call above sets `email_confirm: true`, so that one account can sign in with a password immediately.
+- Authentication → URL configuration, only if confirmation links should open the app: Site URL `tekpath://`, plus `tekpath://**`, `exp://**`, and `https://*.exp.direct/**`. The app no longer sends magic links.
 
 The barometer floor estimate works on a physical phone. Web and phones without a barometer still show the floor you calibrated at the entrance, and the “I’m one floor up / down” buttons correct it.
 
@@ -99,7 +101,7 @@ Start from a fresh `supabase db reset` so both lifts are working and the Adminis
 2. Search for `201`. Choose **Lecture Theatre 201**.
 3. Get step-free directions. Outdoors, walk to the Engineering Lecture Block ramp. Tap **I’m at the entrance** (or come within 25 metres). Indoor guidance starts there and calibrates the ground floor. You can also open **Where are you?** and type `201`. A QR code is optional.
 4. The route uses **Lift A** on the way to level 2. Start step-by-step guidance. Each screen is one landmark, with an “I’m here — next” button. On a phone, taking Lift A and rising about one floor (3.6 m, ~0.12 hPa per metre) auto-advances that lift step.
-5. Sign in as `demo@tekpath.app`. Open **Lift A**, mark it **Broken**, add a note, and submit. The map updates live.
+5. Open **Lift A**, mark it **Broken**, add a note, and submit. Continue as a guest, or sign in as `demo@tekpath.app`. The map updates live.
 6. Search for Lecture Theatre 201 again. The new route uses **Lift B**, including the line “Go through the ramp door; Lift B is on your right.”
 7. Mark **Lift B** broken as well. The next route says there is no step-free route and names both lifts. Stairs stay in the graph and are never offered.
 8. A route to the ground-floor accessible toilet still succeeds, because it does not need a lift.

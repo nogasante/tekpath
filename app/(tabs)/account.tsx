@@ -3,10 +3,12 @@ import { router } from 'expo-router';
 import { useEffect, useState } from 'react';
 import { Pressable, View } from 'react-native';
 
+import { PasswordField } from '@/components/PasswordField';
 import { AppText, Button, Card, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { useToast } from '@/context/Toast';
+import { authCopy, authFailureText, classifyAuthError, emailIssue, nameIssue, passwordIssue } from '@/lib/authFlow';
 import { haptic } from '@/lib/haptics';
 import { supabase } from '@/lib/supabase';
 import { radii, spacing, type as typeScale } from '@/lib/theme';
@@ -59,8 +61,12 @@ export default function AccountScreen() {
   const toast = useToast();
   const [displayName, setDisplayName] = useState('');
   const [mobility, setMobility] = useState('');
+  const [upgradeEmail, setUpgradeEmail] = useState('');
+  const [upgradePassword, setUpgradePassword] = useState('');
+  const [upgradeInbox, setUpgradeInbox] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const guest = session?.user.is_anonymous === true;
 
   useEffect(() => {
     if (!session) return;
@@ -102,6 +108,46 @@ export default function AccountScreen() {
       toast.show('Profile saved.');
       void haptic('success');
     }
+  }
+
+  async function upgrade() {
+    if (!session || !guest) return;
+    const nextName = nameIssue(displayName);
+    const nextEmail = emailIssue(upgradeEmail);
+    const nextPassword = passwordIssue(upgradePassword);
+    if (nextName || nextEmail || nextPassword) {
+      setError(nextName || nextEmail || nextPassword);
+      return;
+    }
+    setError(null);
+    const email = upgradeEmail.trim();
+    const name = displayName.trim();
+    const { data, error: authError } = await supabase.auth.updateUser({
+      email,
+      password: upgradePassword,
+      data: { display_name: name },
+    });
+    if (authError) {
+      const failure = classifyAuthError(authError);
+      if (failure?.kind === 'confirm-email') {
+        await supabase.auth.updateUser({ email, data: { display_name: name } });
+        await supabase.from('profiles').update({ display_name: name, updated_at: new Date().toISOString() }).eq('id', session.user.id);
+        setUpgradeInbox(true);
+        return;
+      }
+      setError(failure ? authFailureText(failure) : authCopy.generic);
+      void haptic('warning');
+      return;
+    }
+    await supabase.from('profiles').update({ display_name: name, updated_at: new Date().toISOString() }).eq('id', session.user.id);
+    if (!data.user || data.user.is_anonymous || !data.user.email) {
+      setUpgradeInbox(true);
+      return;
+    }
+    setUpgradeInbox(false);
+    setMessage('Email saved. This guest account is now yours on other phones too.');
+    toast.show('Email saved.');
+    void haptic('success');
   }
 
   return (
@@ -183,10 +229,34 @@ export default function AccountScreen() {
       {session ? (
         <Card>
           <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
-            Profile
+            {guest ? 'Guest' : 'Signed in'}
           </AppText>
-          <AppText size={typeScale.label}>{session.user.email}</AppText>
-          <Field label="Display name" value={displayName} onChangeText={setDisplayName} />
+          <AppText size={typeScale.label} color={colors.muted}>
+            {guest
+              ? 'Reports from this phone are saved. Add an email to open them on another phone.'
+              : session.user.email || 'Signed in'}
+          </AppText>
+          {guest && upgradeInbox ? (
+            <Notice tone="good">
+              {authCopy.confirmEmail}. Open the link sent to {upgradeEmail.trim()}, then return here. You can keep reporting as a guest until then.
+            </Notice>
+          ) : null}
+          <Field label="Display name" value={displayName} onChangeText={setDisplayName} placeholder="Shown on your reports" />
+          {guest && !upgradeInbox ? (
+            <>
+              <Field
+                label="Email"
+                value={upgradeEmail}
+                onChangeText={setUpgradeEmail}
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                placeholder="name@university.edu"
+              />
+              <PasswordField value={upgradePassword} onChangeText={setUpgradePassword} />
+              <Button label="Save with email" icon="mail" haptic="light" onPress={() => void upgrade()} />
+            </>
+          ) : null}
           <Field
             label="Mobility needs"
             value={mobility}
@@ -203,12 +273,21 @@ export default function AccountScreen() {
             variant="secondary"
             onPress={async () => {
               await supabase.auth.signOut();
-              setMessage('Signed out.');
+              setUpgradeInbox(false);
+              setMessage('Signed out. The map is still open.');
             }}
           />
         </Card>
       ) : (
-        <Button label="Sign in" icon="log-in" haptic="light" onPress={() => router.push('/login')} />
+        <Card>
+          <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
+            No account yet
+          </AppText>
+          <AppText color={colors.muted}>
+            You can use the map, search, routes, and indoor guidance like this. Continue as a guest only when you want to send a report or add a point.
+          </AppText>
+          <Button label="Continue as guest or with email" icon="person" haptic="light" onPress={() => router.push('/login')} />
+        </Card>
       )}
       {message ? <Notice tone="good">{message}</Notice> : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}

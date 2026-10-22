@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 
@@ -11,6 +11,7 @@ import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { useToast } from '@/context/Toast';
 import { haptic } from '@/lib/haptics';
+import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
 import { uploadReportPhoto } from '@/lib/photos';
 import { supabase } from '@/lib/supabase';
 import { radii, spacing, statusTone, type as typeScale } from '@/lib/theme';
@@ -46,6 +47,8 @@ export default function FeatureScreen() {
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const submitRef = useRef<() => void>(() => undefined);
+  const armReport = useResumeWhenSignedIn(Boolean(session), () => submitRef.current());
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -100,6 +103,7 @@ export default function FeatureScreen() {
   async function submit() {
     if (!feature) return;
     if (!session) {
+      armReport(true);
       router.push({ pathname: '/login', params: { next: `/feature/${feature.id}` } });
       return;
     }
@@ -135,6 +139,10 @@ export default function FeatureScreen() {
       setBusy(false);
     }
   }
+
+  submitRef.current = () => {
+    void submit();
+  };
 
   if (!feature) {
     return (
@@ -229,7 +237,7 @@ export default function FeatureScreen() {
         />
       ) : null}
       <Button
-        label={busy ? 'Sending…' : session ? 'Submit report' : 'Sign in to report'}
+        label={busy ? 'Sending…' : session ? 'Submit report' : 'Continue to report'}
         haptic="light"
         onPress={submit}
         disabled={busy}

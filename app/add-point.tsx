@@ -1,5 +1,5 @@
 import { router } from 'expo-router';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { CampusMap } from '@/components/CampusMap';
@@ -8,6 +8,7 @@ import { useAppState } from '@/context/AppState';
 import { useToast } from '@/context/Toast';
 import { supabase } from '@/lib/supabase';
 import { useTheme } from '@/context/Theme';
+import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
 import { campus, type as typeScale } from '@/lib/theme';
 import type { FeatureStatus } from '@/lib/types';
 
@@ -25,9 +26,12 @@ export default function AddPointScreen() {
   const [longitude, setLongitude] = useState(String(campus.longitude));
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const saveRef = useRef<() => void>(() => undefined);
+  const armSave = useResumeWhenSignedIn(Boolean(session), () => saveRef.current());
 
   async function save() {
     if (!session) {
+      armSave(true);
       router.push({ pathname: '/login', params: { next: '/add-point' } });
       return;
     }
@@ -87,6 +91,10 @@ export default function AddPointScreen() {
     router.replace(`/feature/${feature.id}`);
   }
 
+  saveRef.current = () => {
+    void save();
+  };
+
   return (
     <Screen scroll>
       <AppText>Move the map until the place sits in the centre, or type the coordinates. Saving adds it to the campus map and the router.</AppText>
@@ -113,7 +121,7 @@ export default function AddPointScreen() {
       <Field label="Latitude" value={latitude} onChangeText={setLatitude} keyboardType="decimal-pad" />
       <Field label="Longitude" value={longitude} onChangeText={setLongitude} keyboardType="decimal-pad" />
       <AppText size={typeScale.label} color={colors.muted}>The pin uses the map centre unless you type different coordinates.</AppText>
-      <Button label={busy ? 'Saving…' : session ? 'Save point' : 'Sign in to save'} onPress={save} disabled={busy} />
+      <Button label={busy ? 'Saving…' : session ? 'Save point' : 'Continue to save'} onPress={save} disabled={busy} />
       {error ? <Notice tone="bad">{error}</Notice> : null}
     </Screen>
   );

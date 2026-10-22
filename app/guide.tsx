@@ -1,6 +1,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
 
 import { FloorPlan } from '@/components/FloorPlan';
@@ -10,6 +10,7 @@ import { useAppState } from '@/context/AppState';
 import { useTheme } from '@/context/Theme';
 import { haptic } from '@/lib/haptics';
 import { fetchRoute, floorSpoken, spokenStep } from '@/lib/indoor';
+import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
 import { formatDistance } from '@/lib/format';
 import { supabase } from '@/lib/supabase';
 import { radii, spacing, type as typeScale } from '@/lib/theme';
@@ -29,6 +30,8 @@ export default function GuideScreen() {
   const [arrived, setArrived] = useState(false);
   const [blockNote, setBlockNote] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const reportRef = useRef<() => void>(() => undefined);
+  const armReport = useResumeWhenSignedIn(Boolean(session), () => reportRef.current());
 
   const step = route?.ok ? route.steps[index] : undefined;
   const upcoming = route?.ok ? route.steps[index + 1] : undefined;
@@ -114,6 +117,11 @@ export default function GuideScreen() {
 
   async function reportBlocked() {
     if (!step || !route?.ok || !toId) return;
+    if (!session) {
+      armReport(true);
+      router.push({ pathname: '/login', params: { next: `/guide?to=${toId}` } });
+      return;
+    }
     setBusy(true);
     setBlockNote(null);
     try {
@@ -125,10 +133,6 @@ export default function GuideScreen() {
       const featureId = (current?.feature_id || previous?.feature_id) as string | undefined;
       if (!featureId) {
         setBlockNote('This landmark is not a lift or ramp TekPath can mark broken. Choose another place nearby.');
-        return;
-      }
-      if (!session) {
-        router.push({ pathname: '/login', params: { next: `/guide?to=${toId}` } });
         return;
       }
       const { error: insertError } = await supabase.from('reports').insert({
@@ -151,6 +155,10 @@ export default function GuideScreen() {
       setBusy(false);
     }
   }
+
+  reportRef.current = () => {
+    void reportBlocked();
+  };
 
   if (arrived && step) {
     return (

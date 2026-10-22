@@ -1,15 +1,18 @@
 import { router } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { View } from 'react-native';
 
 import { AppText, Button, Field, Notice, Screen } from '@/components/ui';
 import { useAppState } from '@/context/AppState';
 import { supabase } from '@/lib/supabase';
+import { useResumeWhenSignedIn } from '@/lib/resumeAuth';
 import { campus } from '@/lib/theme';
 
 type Building = { id: string; name: string; code: string; latitude: number; longitude: number };
 type Floor = { id: string; name: string; level: number };
 type Node = { id: string; name: string; type: string };
+
+type MapAction = 'building' | 'floor' | 'node' | 'edge';
 
 const nodeTypes = ['entrance', 'ramp', 'lift', 'corridor', 'room', 'toilet', 'junction', 'outdoor'] as const;
 const edgeTypes = ['corridor', 'ramp', 'lift', 'stairs', 'path'] as const;
@@ -62,14 +65,18 @@ export default function MapBuildingScreen() {
     refresh(null);
   }, []);
 
-  function requireAuth() {
+  const actionRef = useRef<(action: MapAction) => void>(() => undefined);
+  const armSave = useResumeWhenSignedIn(Boolean(session), (action: MapAction) => actionRef.current(action));
+
+  function requireAuth(action: MapAction) {
     if (session) return true;
+    armSave(action);
     router.push({ pathname: '/login', params: { next: '/map-building' } });
     return false;
   }
 
   async function addBuilding() {
-    if (!requireAuth()) return;
+    if (!requireAuth('building')) return;
     setError(null);
     const { data, error: insertError } = await supabase
       .from('buildings')
@@ -94,7 +101,8 @@ export default function MapBuildingScreen() {
   }
 
   async function addFloor() {
-    if (!requireAuth() || !buildingId) {
+    if (!requireAuth('floor')) return;
+    if (!buildingId) {
       setError('Choose a building first.');
       return;
     }
@@ -113,7 +121,7 @@ export default function MapBuildingScreen() {
   }
 
   async function addNode() {
-    if (!requireAuth() || !buildingId) return;
+    if (!requireAuth('node') || !buildingId) return;
     const building = buildings.find((item) => item.id === buildingId);
     const qr = `TP-${globalThis.crypto.randomUUID().slice(0, 8).toUpperCase()}`;
     const { error: insertError } = await supabase.from('nodes').insert({
@@ -136,7 +144,8 @@ export default function MapBuildingScreen() {
   }
 
   async function addEdge() {
-    if (!requireAuth() || !eFrom || !eTo) {
+    if (!requireAuth('edge')) return;
+    if (!eFrom || !eTo) {
       setError('Choose both ends of the edge.');
       return;
     }
@@ -154,10 +163,19 @@ export default function MapBuildingScreen() {
     else setMessage('Edge saved. The router can use it on the next search.');
   }
 
+  actionRef.current = (action) => {
+    if (action === 'building') void addBuilding();
+    if (action === 'floor') void addFloor();
+    if (action === 'node') void addNode();
+    if (action === 'edge') void addEdge();
+  };
+
   return (
     <Screen scroll>
       <AppText>This writes floors, nodes, and edges into the same graph the router uses. Seeded buildings stay unless you created them.</AppText>
-      {!session ? <Button label="Sign in to map" onPress={() => router.push({ pathname: '/login', params: { next: '/map-building' } })} /> : null}
+      {!session ? (
+        <Button label="Continue as guest or with email" onPress={() => router.push({ pathname: '/login', params: { next: '/map-building' } })} />
+      ) : null}
       {message ? <Notice tone="good">{message}</Notice> : null}
       {error ? <Notice tone="bad">{error}</Notice> : null}
 
