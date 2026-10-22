@@ -48,12 +48,13 @@ const MAP_HTML = `<!DOCTYPE html>
       margin: 0 8px 8px 0 !important;
       padding: 3px 8px;
       border-radius: 999px;
-      max-width: 54vw;
+      max-width: 62vw;
       white-space: nowrap;
       overflow: hidden;
       text-overflow: ellipsis;
       box-shadow: 0 4px 14px rgba(28,36,32,.12);
     }
+    .leaflet-control-attribution a { color: inherit; }
   </style>
 </head>
 <body>
@@ -77,11 +78,7 @@ const MAP_HTML = `<!DOCTYPE html>
     let pending = null;
     let map = null;
     let layer = null;
-    let voyager = null;
-    let positron = null;
-    let dark = null;
-    let darkQuiet = null;
-    let active = null;
+    let osm = null;
     let quiet = false;
     let framed = false;
     const num = (value) => {
@@ -120,21 +117,21 @@ const MAP_HTML = `<!DOCTYPE html>
       framed = true;
       post({ type: 'framed' });
     }
-    function chooseBase(mode) {
-      if (mode === 'dark') return quiet ? darkQuiet : dark;
-      return quiet ? positron : voyager;
-    }
     function paintBase(mode) {
-      const next = chooseBase(mode);
-      if (!next || next === active) return;
-      if (active) map.removeLayer(active);
-      next.addTo(map);
-      active = next;
+      if (osm && !map.hasLayer(osm)) osm.addTo(map);
       const darkMode = mode === 'dark';
-      document.body.style.background = darkMode ? '#1A2420' : '#E4EFE8';
+      const pane = map.getPane('tilePane');
+      if (pane) {
+        pane.style.filter = darkMode
+          ? (quiet
+            ? 'invert(1) hue-rotate(180deg) brightness(0.78) contrast(0.88) saturate(0.4)'
+            : 'invert(1) hue-rotate(180deg) brightness(0.93) contrast(0.92) saturate(0.8)')
+          : (quiet ? 'saturate(0.45) brightness(1.03) contrast(0.96)' : 'none');
+      }
+      document.body.style.background = darkMode ? '#141816' : '#E7F0E4';
       const credit = document.querySelector('.leaflet-control-attribution');
       if (credit) {
-        credit.style.background = darkMode ? 'rgba(16,22,20,.78)' : 'rgba(255,252,248,.88)';
+        credit.style.background = darkMode ? 'rgba(16,22,20,.82)' : 'rgba(255,252,248,.9)';
         credit.style.color = darkMode ? '#F6F1E8' : '#3E534A';
       }
     }
@@ -227,12 +224,10 @@ const MAP_HTML = `<!DOCTYPE html>
     } else {
       map = L.map('map', { zoomControl: false, attributionControl: true }).setView([${campus.latitude}, ${campus.longitude}], 16);
       map.attributionControl.setPrefix('');
-      const carto = { maxZoom: 20, subdomains: 'abcd' };
-      voyager = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', Object.assign({ attribution: '© OpenStreetMap © CARTO' }, carto));
-      positron = L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', Object.assign({ attribution: '© OpenStreetMap © CARTO' }, carto));
-      dark = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', Object.assign({ attribution: '© OpenStreetMap © CARTO' }, carto));
-      darkQuiet = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', Object.assign({ attribution: '© OpenStreetMap © CARTO' }, carto));
-      active = voyager.addTo(map);
+      osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+      }).addTo(map);
       layer = L.layerGroup().addTo(map);
       map.on('zoomend', () => { if (pending) draw(pending); });
       map.on('moveend', () => {
