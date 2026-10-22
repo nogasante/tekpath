@@ -1,6 +1,7 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Image, Pressable, View } from 'react-native';
 import Svg, { Circle, Polygon, Polyline, Text as SvgText } from 'react-native-svg';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import {
   ClusterMark,
@@ -32,6 +33,7 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
   ref,
 ) {
   const { mode } = useTheme();
+  const insets = useSafeAreaInsets();
   const pad = padding ?? { top: 72, right: 24, bottom: 220, left: 64 };
   const regionRef = useRef<Region>(focus ? focusRegion(focus) : campusRegion);
   const [region, setRegion] = useState<Region>(focus ? focusRegion(focus) : campusRegion);
@@ -194,7 +196,7 @@ export const CampusMap = forwardRef<MapHandle, MapProps>(function CampusMap(
         size={12}
         weight="700"
         color={mode === 'dark' ? '#8FCBB8' : '#0F6E56'}
-        style={{ position: 'absolute', left: 16, bottom: pad.bottom + 10 }}>
+        style={{ position: 'absolute', left: Math.max(16, insets.left + 12), bottom: pad.bottom + 10 }}>
         KNUST · © OpenStreetMap
       </AppText>
       {selected ? (

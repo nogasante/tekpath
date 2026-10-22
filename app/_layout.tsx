@@ -2,12 +2,14 @@ import { PlusJakartaSans_400Regular } from '@expo-google-fonts/plus-jakarta-sans
 import { PlusJakartaSans_500Medium } from '@expo-google-fonts/plus-jakarta-sans/500Medium';
 import { PlusJakartaSans_600SemiBold } from '@expo-google-fonts/plus-jakarta-sans/600SemiBold';
 import { PlusJakartaSans_700Bold } from '@expo-google-fonts/plus-jakarta-sans/700Bold';
+import { NavigationBar } from 'expo-navigation-bar';
 import { useFonts } from 'expo-font';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { useEffect } from 'react';
 
+import { SafeAreaRoot } from '@/components/SafeAreaRoot';
 import { AppStateProvider } from '@/context/AppState';
 import { ThemeProvider, useTheme } from '@/context/Theme';
 import { ToastProvider } from '@/context/Toast';
@@ -19,9 +21,11 @@ SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { colors, mode, reduceMotion } = useTheme();
+  const barStyle = mode === 'dark' ? 'light' : 'dark';
   return (
     <>
-      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <StatusBar style={barStyle} />
+      <NavigationBar style={barStyle} />
       <Stack
         screenOptions={{
           animation: reduceMotion ? 'none' : 'fade_from_bottom',
@@ -29,6 +33,10 @@ function RootNavigator() {
           headerTintColor: colors.ink,
           headerTitleStyle: { fontFamily: font.semibold, fontSize: 17, color: colors.ink },
           headerShadowVisible: false,
+          statusBarStyle: barStyle,
+          statusBarTranslucent: true,
+          navigationBarTranslucent: true,
+          navigationBarColor: 'transparent',
           contentStyle: { backgroundColor: colors.bg },
         }}>
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
@@ -74,12 +82,14 @@ export default function RootLayout() {
   if (!ready) return null;
 
   return (
-    <ThemeProvider>
-      <AppStateProvider>
-        <ToastProvider>
-          <RootNavigator />
-        </ToastProvider>
-      </AppStateProvider>
-    </ThemeProvider>
+    <SafeAreaRoot>
+      <ThemeProvider>
+        <AppStateProvider>
+          <ToastProvider>
+            <RootNavigator />
+          </ToastProvider>
+        </AppStateProvider>
+      </ThemeProvider>
+    </SafeAreaRoot>
   );
 }

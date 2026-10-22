@@ -1,6 +1,9 @@
 import { Ionicons } from '@expo/vector-icons';
+import { StatusBar } from 'expo-status-bar';
 import { ReactNode, useEffect } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   Pressable,
   ScrollView,
   Text,
@@ -14,7 +17,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Frosted } from '@/components/Glass';
 import { useAppState } from '@/context/AppState';
@@ -45,34 +48,55 @@ export function AppText({
   );
 }
 
+const keyboardBehavior = Platform.OS === 'web' ? undefined : 'padding';
+
 export function Screen({
   children,
   scroll = false,
   edges = ['left', 'right', 'bottom'],
   padded = true,
+  keyboard = true,
 }: {
   children: ReactNode;
   scroll?: boolean;
   edges?: ('top' | 'left' | 'right' | 'bottom')[];
   padded?: boolean;
+  /** Lift focused fields above the keyboard on auth screens and forms. */
+  keyboard?: boolean;
 }) {
-  const { colors } = useTheme();
+  const { colors, mode } = useTheme();
+  const insets = useSafeAreaInsets();
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.bg }} edges={edges}>
-      {scroll ? (
-        <ScrollView
-          contentContainerStyle={{
-            padding: padded ? spacing.lg : 0,
-            gap: spacing.md,
-            paddingBottom: spacing.xxl,
-          }}
-          keyboardShouldPersistTaps="handled">
-          {children}
-        </ScrollView>
-      ) : (
-        <View style={{ flex: 1 }}>{children}</View>
-      )}
-    </SafeAreaView>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.bg }}
+      behavior={keyboard ? keyboardBehavior : undefined}
+      keyboardVerticalOffset={0}>
+      <StatusBar style={mode === 'dark' ? 'light' : 'dark'} />
+      <View
+        style={{
+          flex: 1,
+          backgroundColor: colors.bg,
+          paddingTop: edges.includes('top') ? insets.top : 0,
+          paddingBottom: edges.includes('bottom') ? insets.bottom : 0,
+          paddingLeft: edges.includes('left') ? insets.left : 0,
+          paddingRight: edges.includes('right') ? insets.right : 0,
+        }}>
+        {scroll ? (
+          <ScrollView
+            contentContainerStyle={{
+              padding: padded ? spacing.lg : 0,
+              gap: spacing.md,
+              paddingBottom: padded ? spacing.xxl : spacing.lg,
+            }}
+            keyboardShouldPersistTaps="handled"
+            automaticallyAdjustKeyboardInsets>
+            {children}
+          </ScrollView>
+        ) : (
+          <View style={{ flex: 1 }}>{children}</View>
+        )}
+      </View>
+    </KeyboardAvoidingView>
   );
 }
 

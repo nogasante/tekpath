@@ -201,7 +201,7 @@ export default function AccountScreen() {
   }
 
   return (
-    <Screen scroll>
+    <Screen scroll edges={['left', 'right']}>
       <Card>
         <AppText accessibilityRole="header" weight="700" size={typeScale.headline}>
           Text size

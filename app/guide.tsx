@@ -2,6 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import { Image, Pressable, ScrollView, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { FloorPlan } from '@/components/FloorPlan';
 import { ConfirmedArt } from '@/components/Illustrations';
@@ -25,6 +26,7 @@ export default function GuideScreen() {
   const params = useLocalSearchParams<{ to?: string }>();
   const toId = typeof params.to === 'string' ? params.to : undefined;
   const { colors } = useTheme();
+  const insets = useSafeAreaInsets();
   const { route, setRoute, floor, correctFloor, session, startNode } = useAppState();
   const [index, setIndex] = useState(0);
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -220,7 +222,7 @@ export default function GuideScreen() {
   const photo = photos[step.node_id];
 
   return (
-    <Screen padded={false}>
+    <Screen padded={false} edges={['left', 'right']}>
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md, paddingBottom: spacing.lg }} keyboardShouldPersistTaps="handled">
         <AppText size={typeScale.label} weight="600" color={colors.muted}>
           Step {index + 1} of {route.steps.length}
@@ -319,7 +321,13 @@ export default function GuideScreen() {
           </View>
         ) : null}
       </ScrollView>
-      <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md, gap: spacing.sm, backgroundColor: colors.bg }}>
+      <View
+        style={{
+          paddingHorizontal: spacing.lg,
+          paddingBottom: insets.bottom + spacing.md,
+          gap: spacing.sm,
+          backgroundColor: colors.bg,
+        }}>
         {!last ? (
           <Button label={busy ? 'Checking another way…' : "I can't get through here"} variant="secondary" icon="warning" onPress={() => void reportBlocked()} disabled={busy} />
         ) : null}

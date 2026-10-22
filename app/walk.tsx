@@ -19,6 +19,7 @@ import { createDetector, floorDetectorTuning, verticalAcceleration } from '@/lib
 import { footprintCaption, formatArea, measureFootprint, ringFromGeoJson, type LngLat } from '@/lib/footprint';
 import { haptic } from '@/lib/haptics';
 import { fetchBuildingFootprints, type OsmBuilding, type OsmEntrance } from '@/lib/overpass';
+import { useKeyboardOpen } from '@/lib/keyboard';
 import { publishToast } from '@/lib/moderation';
 import { publishWalk } from '@/lib/publishWalk';
 import { calibrateStepLength, smoothHeading } from '@/lib/pdr';
@@ -114,6 +115,7 @@ export default function WalkScreen() {
   const { colors } = useTheme();
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const keyboardOpen = useKeyboardOpen();
   const { session } = useAppState();
   const [phase, setPhase] = useState<Phase>('place');
   const [draft, setDraft] = useState<WalkDraft | null>(null);
@@ -674,15 +676,18 @@ export default function WalkScreen() {
 
   const sheetView = (
     <Modal visible={sheet != null} transparent animationType="slide" onRequestClose={() => setSheet(null)}>
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'web' ? undefined : 'padding'}
+        style={{ flex: 1, justifyContent: 'flex-end', paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
         <Pressable accessibilityLabel="Close" onPress={() => setSheet(null)} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(16,22,20,0.45)' }} />
         <View
           style={{
             backgroundColor: colors.bg,
             borderTopLeftRadius: radii.lg,
             borderTopRightRadius: radii.lg,
-            padding: spacing.lg,
-            paddingBottom: Math.max(insets.bottom, spacing.lg),
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.lg,
+            paddingBottom: keyboardOpen ? spacing.lg : Math.max(insets.bottom, spacing.lg),
             gap: spacing.md,
           }}>
           <AppText weight="700" size={typeScale.headline}>
@@ -702,14 +707,15 @@ export default function WalkScreen() {
 
   const confirmView = (
     <Modal visible={confirmPublish} transparent animationType="fade" onRequestClose={() => setConfirmPublish(false)}>
-      <View style={{ flex: 1, justifyContent: 'flex-end' }}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', paddingTop: insets.top, paddingLeft: insets.left, paddingRight: insets.right }}>
         <Pressable accessibilityLabel="Keep editing" onPress={() => setConfirmPublish(false)} style={{ position: 'absolute', left: 0, top: 0, right: 0, bottom: 0, backgroundColor: 'rgba(16,22,20,0.45)' }} />
         <View
           style={{
             backgroundColor: colors.bg,
             borderTopLeftRadius: radii.lg,
             borderTopRightRadius: radii.lg,
-            padding: spacing.lg,
+            paddingHorizontal: spacing.lg,
+            paddingTop: spacing.lg,
             paddingBottom: Math.max(insets.bottom, spacing.lg),
             gap: spacing.md,
           }}>
@@ -726,7 +732,7 @@ export default function WalkScreen() {
 
   if (phase === 'outline') {
     return (
-      <Screen padded={false}>
+      <Screen padded={false} edges={['left', 'right']}>
         <View style={{ flex: 1 }}>
           <CampusMap
             features={[]}
@@ -744,6 +750,7 @@ export default function WalkScreen() {
             borderTopLeftRadius: radii.lg,
             borderTopRightRadius: radii.lg,
             padding: spacing.lg,
+            paddingBottom: insets.bottom + spacing.lg,
             gap: spacing.sm,
             borderTopWidth: 1,
             borderColor: colors.line,
@@ -820,7 +827,7 @@ export default function WalkScreen() {
   if (phase === 'walk' && draft) {
     const steps = Math.max(0, floorTrace.length - 1);
     return (
-      <Screen padded={false}>
+      <Screen padded={false} edges={['left', 'right']}>
         <View style={{ flex: 1 }}>
           <View style={{ flex: 11 }}>
             <WalkCanvas
@@ -848,7 +855,7 @@ export default function WalkScreen() {
                 </View>
               </View>
             ) : null}
-            <ScrollView contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }} keyboardShouldPersistTaps="handled">
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: spacing.lg, gap: spacing.md }} keyboardShouldPersistTaps="handled">
               {banner ? <Notice tone={banner.tone}>{banner.text}</Notice> : null}
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm }}>
                 {TILES.map((tile) => (
@@ -887,7 +894,7 @@ export default function WalkScreen() {
               />
               {__DEV__ ? <Button label="Step forward" variant="ghost" onPress={() => pushSteps(1)} /> : null}
             </ScrollView>
-            <View style={{ paddingHorizontal: spacing.lg, paddingBottom: spacing.md }}>
+            <View style={{ paddingHorizontal: spacing.lg, paddingBottom: insets.bottom + spacing.md, backgroundColor: colors.bg }}>
               <Button label="Back at the entrance" onPress={finishWalk} />
             </View>
           </View>

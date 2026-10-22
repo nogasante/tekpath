@@ -20,6 +20,7 @@ import { formatAgo, formatDistance, metresBetween } from '@/lib/format';
 import { haptic } from '@/lib/haptics';
 import { WELCOME_KEY } from '@/lib/welcome';
 import { supabase, supabaseConfigError } from '@/lib/supabase';
+import { mapPaddingForInsets } from '@/lib/safeArea';
 import { campus, elevation, spacing, type as typeScale } from '@/lib/theme';
 import type { AccessFeature, FeatureStatus } from '@/lib/types';
 import { kindLabel } from '@/lib/types';
@@ -120,14 +121,11 @@ export default function MapScreen() {
   const full = Math.max(mid + 48, Math.round((boxHeight || 780) * 0.82));
   const snaps = useMemo(() => [peek, mid, full], [full, mid, peek]);
   const padding = useMemo<MapPadding>(
-    () => ({
-      top: insets.top + 128,
-      right: 20,
-      bottom: wide ? 48 : peek + 12,
-      left: 72,
-    }),
-    [insets.top, peek, wide],
+    () => mapPaddingForInsets(insets, peek, wide),
+    [insets, peek, wide],
   );
+  const gutterLeft = Math.max(spacing.md, insets.left + spacing.sm);
+  const gutterRight = Math.max(spacing.md, insets.right + spacing.sm);
   const origin = startNode
     ? { latitude: startNode.latitude, longitude: startNode.longitude }
     : campus;
@@ -149,7 +147,16 @@ export default function MapScreen() {
 
   if (supabaseConfigError) {
     return (
-      <View style={{ flex: 1, padding: spacing.xl, justifyContent: 'center', backgroundColor: colors.bg }}>
+      <View
+        style={{
+          flex: 1,
+          paddingTop: insets.top + spacing.xl,
+          paddingBottom: insets.bottom + spacing.xl,
+          paddingLeft: insets.left + spacing.xl,
+          paddingRight: insets.right + spacing.xl,
+          justifyContent: 'center',
+          backgroundColor: colors.bg,
+        }}>
         <Notice tone="bad">{supabaseConfigError}</Notice>
       </View>
     );
@@ -175,7 +182,12 @@ export default function MapScreen() {
       ref={listRef}
       style={{ flex: 1 }}
       keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{ gap: spacing.md, paddingHorizontal: spacing.lg, paddingBottom: spacing.xl }}>
+      contentContainerStyle={{
+        gap: spacing.md,
+        paddingLeft: spacing.lg + insets.left,
+        paddingRight: spacing.lg + insets.right,
+        paddingBottom: spacing.xl,
+      }}>
       {startLink}
       {selected ? (
         <View style={{ gap: spacing.sm, paddingBottom: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.line }}>
@@ -259,7 +271,7 @@ export default function MapScreen() {
         />
         <View
           pointerEvents="box-none"
-          style={{ position: 'absolute', top: insets.top + 8, left: spacing.md, right: spacing.md, gap: spacing.sm }}>
+          style={{ position: 'absolute', top: insets.top + 8, left: gutterLeft, right: gutterRight, gap: spacing.sm }}>
           <View style={{ flexDirection: 'row', gap: spacing.sm }}>
             <Pressable
               accessibilityRole="button"
@@ -304,10 +316,19 @@ export default function MapScreen() {
             ))}
           </ScrollView>
         </View>
-        <MapControls mapRef={mapRef} style={{ position: 'absolute', top: insets.top + 132, left: spacing.md }} />
+        <MapControls mapRef={mapRef} style={{ position: 'absolute', top: insets.top + 132, left: gutterLeft }} />
       </View>
       {wide ? (
-        <View style={{ width: 380, borderLeftWidth: 1, borderLeftColor: colors.line, backgroundColor: colors.bg }}>{sheetBody}</View>
+        <View
+          style={{
+            width: 380,
+            borderLeftWidth: 1,
+            borderLeftColor: colors.line,
+            backgroundColor: colors.bg,
+            paddingTop: insets.top,
+          }}>
+          {sheetBody}
+        </View>
       ) : (
         <Sheet snaps={snaps} focus={selectedId ? 1 : 0}>
           {sheetBody}

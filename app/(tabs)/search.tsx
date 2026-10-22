@@ -123,7 +123,7 @@ export default function SearchScreen() {
   const needle = searchNeedle(query);
 
   return (
-    <Screen scroll>
+    <Screen scroll edges={['left', 'right']}>
       {supabaseConfigError ? <Notice tone="bad">{supabaseConfigError}</Notice> : null}
       <AppText size={typeScale.body} color={colors.muted}>
         Search a room number or a building. Indoor directions start at the step-free entrance, then continue inside.

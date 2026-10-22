@@ -9,7 +9,7 @@ export default function ContributeScreen() {
   const { colors } = useTheme();
   const { session } = useAppState();
   return (
-    <Screen scroll>
+    <Screen scroll edges={['left', 'right']}>
       <AppText size={typeScale.body} color={colors.muted}>
         The map, search, routes, and indoor guidance work with no account. Adding a point or a report asks you to continue as a guest, or with an email.
       </AppText>

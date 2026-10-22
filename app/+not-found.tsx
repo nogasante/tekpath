@@ -1,16 +1,16 @@
 import { Link, Stack } from 'expo-router';
 import { View } from 'react-native';
 
-import { AppText } from '@/components/ui';
+import { AppText, Screen } from '@/components/ui';
 import { useTheme } from '@/context/Theme';
 import { spacing, type as typeScale } from '@/lib/theme';
 
 export default function NotFoundScreen() {
   const { colors } = useTheme();
   return (
-    <>
+    <Screen>
       <Stack.Screen options={{ title: 'Not found' }} />
-      <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', padding: spacing.xl, backgroundColor: colors.bg, gap: spacing.lg }}>
+      <View style={{ flex: 1, alignItems: 'flex-start', justifyContent: 'center', padding: spacing.xl, gap: spacing.lg }}>
         <AppText accessibilityRole="header" size={typeScale.title} weight="700">
           That screen is not on the map.
         </AppText>
@@ -20,6 +20,6 @@ export default function NotFoundScreen() {
           </AppText>
         </Link>
       </View>
-    </>
+    </Screen>
   );
 }

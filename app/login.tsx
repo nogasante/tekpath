@@ -3,6 +3,8 @@ import { useState } from 'react';
 import { KeyboardAvoidingView, Platform, Pressable, ScrollView, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useKeyboardOpen } from '@/lib/keyboard';
+
 import { PasswordField } from '@/components/PasswordField';
 import { Wordmark } from '@/components/Logo';
 import { AppText, Button, Field, Notice } from '@/components/ui';
@@ -51,6 +53,7 @@ export default function LoginScreen() {
   const { colors } = useTheme();
   const toast = useToast();
   const insets = useSafeAreaInsets();
+  const keyboardOpen = useKeyboardOpen();
   const [step, setStep] = useState<Step>(isGuestSignInHidden() ? 'email' : 'gate');
   const [mode, setMode] = useState<AuthMode>('signin');
   const [email, setEmail] = useState('');
@@ -170,9 +173,12 @@ export default function LoginScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: colors.overlay, justifyContent: 'flex-end' }}>
-      <Pressable accessibilityLabel="Close" accessibilityRole="button" onPress={close} style={{ flex: 1 }} />
-      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView
+      style={{ flex: 1, backgroundColor: colors.overlay, paddingTop: insets.top }}
+      behavior={Platform.OS === 'web' ? undefined : 'padding'}
+      keyboardVerticalOffset={0}>
+      <View style={{ flex: 1, justifyContent: 'flex-end', paddingLeft: insets.left, paddingRight: insets.right }}>
+        <Pressable accessibilityLabel="Close" accessibilityRole="button" onPress={close} style={{ flex: 1 }} />
         <View
           accessibilityViewIsModal
           style={{
@@ -181,7 +187,7 @@ export default function LoginScreen() {
             borderTopRightRadius: radii.lg,
             paddingHorizontal: spacing.lg,
             paddingTop: spacing.sm,
-            paddingBottom: Math.max(insets.bottom, spacing.lg),
+            paddingBottom: keyboardOpen ? spacing.lg : Math.max(insets.bottom, spacing.lg),
             gap: spacing.md,
             maxHeight: '88%',
           }}>
@@ -341,7 +347,7 @@ export default function LoginScreen() {
             ) : null}
           </ScrollView>
         </View>
-      </KeyboardAvoidingView>
-    </View>
+      </View>
+    </KeyboardAvoidingView>
   );
 }

@@ -39,8 +39,8 @@ export function ToastProvider({ children }: { children: ReactNode }) {
           accessibilityRole="alert"
           style={{
             position: 'absolute',
-            left: spacing.lg,
-            right: spacing.lg,
+            left: insets.left + spacing.lg,
+            right: insets.right + spacing.lg,
             top: insets.top + 12,
             borderRadius: radii.md,
             paddingHorizontal: spacing.lg,
